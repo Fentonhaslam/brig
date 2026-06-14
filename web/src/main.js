@@ -166,15 +166,26 @@ ship.userData.seaPos = shipPosV;         // shared with the swim/wave code
 // When the ship anchors at Santo Domingo we freeze the world and bake the
 // island's colliders into the physics world, so the player can swim ashore and
 // walk the town. Weighing anchor / sailing off reverses it.
+let gangway = null; // { meshes:[], handles:[] }
+
 function parkWorld() {
   parked = true;
+  // bring her alongside: square up (heading 0) and snap to the berth so the
+  // pier lies just off the starboard side, then freeze the world there.
   ship.userData.nav.speed = 0;
+  ship.userData.nav.heading = 0;
+  shipPosV.set(-124, 0, 202);
+  worldGroup.rotation.y = 0;
+  worldGroup.position.copy(shipPosV).multiplyScalar(-1);
   worldGroup.updateMatrixWorld(true);
+
   const iw = islands.userData.colliders.walkable;
   const is = islands.userData.colliders.solid;
   islandColliders = addStaticColliders(physWorld, [...iw, ...is]);
   ship.userData.colliders.walkable.push(...iw); // so camera/ground sampling sees land
   ship.userData.colliders.solid.push(...is);
+
+  buildGangway();
   ship.userData.ashore = { shore: islands.userData.shore };
 }
 function unparkWorld() {
@@ -184,8 +195,38 @@ function unparkWorld() {
   const is = islands.userData.colliders.solid;
   for (const m of iw) { const a = ship.userData.colliders.walkable, i = a.indexOf(m); if (i >= 0) a.splice(i, 1); }
   for (const m of is) { const a = ship.userData.colliders.solid, i = a.indexOf(m); if (i >= 0) a.splice(i, 1); }
+  removeGangway();
   ship.userData.ashore = null;
 }
+
+// A gangway the crew auto-rig at the berth: a short ramp up over the starboard
+// rail and a plank down to the pier — walk straight off the ship onto land.
+function buildGangway() {
+  if (gangway) return;
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6a4a28, roughness: 0.9 });
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.22, 2.4), mat);
+  ramp.position.set(3.8, 3.95, 0); ramp.rotation.z = 0.77; ramp.userData.walkable = true;
+  ramp.castShadow = true;
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.22, 2.2), mat);
+  plank.position.set(6.6, 3.5, 0); plank.rotation.z = -0.5; plank.userData.walkable = true;
+  plank.castShadow = true;
+  const meshes = [ramp, plank];
+  for (const m of meshes) scene.add(m);
+  const handles = addStaticColliders(physWorld, meshes);
+  ship.userData.colliders.walkable.push(...meshes);
+  gangway = { meshes, handles };
+}
+
+function removeGangway() {
+  if (!gangway) return;
+  removeColliders(physWorld, gangway.handles);
+  for (const m of gangway.meshes) {
+    scene.remove(m);
+    const a = ship.userData.colliders.walkable, i = a.indexOf(m); if (i >= 0) a.splice(i, 1);
+  }
+  gangway = null;
+}
+const MAT_ROPE = new THREE.MeshStandardMaterial({ color: 0x2a1d10, roughness: 0.9 });
 
 // --- bow & stern wake — foam on the water that grows with the ship's speed --
 const BOW_Z = 18, STERN_Z = -18;
@@ -210,10 +251,6 @@ function updateWake(speed) {
   bowR.material.opacity = op; bowR.scale.set(0.6 + 0.7 * s, 0.5 + s, 1);
   mustache.material.opacity = op; mustache.scale.set(0.7 + 0.6 * s, 0.6 + 0.8 * s, 1);
   sternWash.material.opacity = op * 0.9; sternWash.scale.set(0.5 + 1.1 * s, 0.4 + 1.6 * s, 1);
-  // ride the swell so foam sits on the surface instead of clipping it
-  for (const f of [bowL, bowR, mustache, sternWash]) {
-    f.position.y = 0.18 + waveHeight(f.position.x + shipPosV.x, f.position.z + shipPosV.z, elapsed * 0.9);
-  }
 }
 
 // --- driving from the cinematic view: WASD steers/throttles the ship ---------
@@ -279,7 +316,7 @@ function updateSailing(dt) {
       const kn = (nav.speed * 11).toFixed(1);
       const hdg = (((nav.heading * 180 / Math.PI) % 360) + 360) % 360;
       if (docked) {
-        hint.textContent = '⚓ Anchored at Santo Domingo — press C to walk the deck, leap from the rail (Space) to swim ashore · K for the Chronicle';
+        hint.textContent = '⚓ Berthed at Santo Domingo — press C to walk the deck and down the gangway ashore · K for the Chronicle';
       } else if (atHelm || Math.abs(nav.speed) > 0.01 || navKeys.has('KeyW') || navKeys.has('KeyS') || navKeys.has('KeyA') || navKeys.has('KeyD')) {
         hint.textContent = `⚓ heading ${hdg.toFixed(0)}° · ${kn} kn · anchor ${anchorUp ? 'UP' : 'DOWN'} · `
           + `Santo Domingo ${range > 9000 ? '—' : Math.round(range) + 'm'}  ·  W/S throttle · A/D steer · Space anchor`
@@ -325,6 +362,10 @@ function setTimeOfDay(frac) {
   renderer.toneMappingExposure = 0.5 + 0.3 * d;
   scene.fog.color.copy(FOG_NIGHT).lerp(FOG_DAY, d);
   scene.fog.density = 0.0016 + 0.0007 * (1 - d);
+
+  if (water.material.uniforms['sunDirection']) {
+    water.material.uniforms['sunDirection'].value.copy(sun).normalize();
+  }
 }
 setTimeOfDay(dayFrac);
 
@@ -497,6 +538,12 @@ if (location.hash.includes('helm')) { setWalkMode(); player.takeHelm(); }
 if (location.hash.includes('talk')) { setWalkMode(); player.talkTo(0); }
 if (location.hash.includes('fire')) { onBroadside(); }
 if (location.hash.includes('swim')) { setWalkMode(); player.debugSwim(); }
+if (location.hash.includes('berth')) {
+  ship.userData.anchor.up = false;
+  shipPosV.copy(islands.userData.dock);     // close to dock -> parks next frame
+  controls.autoRotate = false;
+  camera.position.set(34, 15, -4); controls.target.set(7, 2, 2); controls.update();
+}
 if (location.hash.includes('sail')) {
   ship.userData.nav.speed = 0.7; controls.autoRotate = false;
   camera.position.set(34, 13, 40); controls.target.set(0, 3, 14); controls.update();
@@ -642,11 +689,11 @@ function animate() {
       torch.intensity = 0;
     }
   } else {
-    // Cinematic — the ship rides the actual wave field (heave + pitch + roll)
+    // Cinematic — a gentle swell on the (flat reflective) sea
     const b = sampleBuoyancy(shipPosV.x, shipPosV.z, elapsed, 14, 5);
-    ship.position.y = b.y;
-    ship.rotation.x = b.pitch;
-    ship.rotation.z = b.roll;
+    ship.position.y = b.y * 0.5;
+    ship.rotation.x = b.pitch * 0.8;
+    ship.rotation.z = b.roll * 0.8;
     controls.update();
   }
 
