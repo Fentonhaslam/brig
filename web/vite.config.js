@@ -11,8 +11,9 @@ export default defineConfig({
     target: 'esnext',
     chunkSizeWarningLimit: 3500,
     rollupOptions: {
-      // index.html is now the Babylon build (the Three.js sources remain in the
-      // repo for reference but are no longer the entry)
+      // index.html = current (Babylon) live build; game.html = the lightweight
+      // three.js rebuild in progress. game.html becomes index.html at the flip.
+      input: { main: 'index.html', game: 'game.html' },
       output: {
         manualChunks: {
           three: ['three'],
