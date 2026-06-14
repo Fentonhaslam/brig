@@ -17,9 +17,10 @@ export function createWorld() {
 }
 
 // Build fixed trimesh colliders from meshes, baked in world space (so the
-// ship's scale/position are included). Returns the collider count.
+// ship's scale/position are included). Returns the created collider handles
+// (so a set — e.g. the island, when docked — can be removed again later).
 export function addStaticColliders(world, meshes) {
-  let n = 0;
+  const handles = [];
   const v = new THREE.Vector3();
   for (const m of meshes) {
     const geo = m.geometry;
@@ -35,11 +36,14 @@ export function addStaticColliders(world, meshes) {
     if (geo.index) indices = new Uint32Array(geo.index.array);
     else { indices = new Uint32Array(pos.count); for (let i = 0; i < pos.count; i++) indices[i] = i; }
     try {
-      world.createCollider(R.ColliderDesc.trimesh(verts, indices));
-      n++;
+      handles.push(world.createCollider(R.ColliderDesc.trimesh(verts, indices)));
     } catch (e) { /* skip degenerate geometry */ }
   }
-  return n;
+  return handles;
+}
+
+export function removeColliders(world, handles) {
+  for (const h of handles) { try { world.removeCollider(h, false); } catch (e) {} }
 }
 
 // A big level "sea floor" plane far below, so a player who walks off the ship

@@ -16,7 +16,7 @@ import { joinWorld } from './net/presence.js';
 import { listLore, addLore, subscribeLore } from './net/lore.js';
 import { createMonuments } from './world/monuments.js';
 import { mountChronicle } from './net/chronicle.js';
-import { initPhysics, createWorld, addStaticColliders, addSeaPlane } from './physics/world.js';
+import { initPhysics, createWorld, addStaticColliders, addSeaPlane, removeColliders } from './physics/world.js';
 import { sampleBuoyancy } from './world/waves.js';
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,34 @@ worldGroup.add(islands);
 const shipPosV = new THREE.Vector3();   // virtual position on the sea
 const _yAxis = new THREE.Vector3(0, 1, 0);
 let docked = false;
+let parked = false;                      // world frozen + island colliders live
+let islandColliders = null;
 const MAX_SPEED = 30;                    // units/sec at full sail
+ship.userData.seaPos = shipPosV;         // shared with the swim/wave code
+
+// When the ship anchors at Santo Domingo we freeze the world and bake the
+// island's colliders into the physics world, so the player can swim ashore and
+// walk the town. Weighing anchor / sailing off reverses it.
+function parkWorld() {
+  parked = true;
+  ship.userData.nav.speed = 0;
+  worldGroup.updateMatrixWorld(true);
+  const iw = islands.userData.colliders.walkable;
+  const is = islands.userData.colliders.solid;
+  islandColliders = addStaticColliders(physWorld, [...iw, ...is]);
+  ship.userData.colliders.walkable.push(...iw); // so camera/ground sampling sees land
+  ship.userData.colliders.solid.push(...is);
+  ship.userData.ashore = { shore: islands.userData.shore };
+}
+function unparkWorld() {
+  parked = false;
+  if (islandColliders) { removeColliders(physWorld, islandColliders); islandColliders = null; }
+  const iw = islands.userData.colliders.walkable;
+  const is = islands.userData.colliders.solid;
+  for (const m of iw) { const a = ship.userData.colliders.walkable, i = a.indexOf(m); if (i >= 0) a.splice(i, 1); }
+  for (const m of is) { const a = ship.userData.colliders.solid, i = a.indexOf(m); if (i >= 0) a.splice(i, 1); }
+  ship.userData.ashore = null;
+}
 
 // --- bow & stern wake — foam on the water that grows with the ship's speed --
 const BOW_Z = 18, STERN_Z = -18;
@@ -205,13 +232,17 @@ function updateSailing(dt) {
   const anchorUp = ship.userData.anchor ? ship.userData.anchor.up : true;
   docked = range < 70 && !anchorUp;
 
+  // freeze the world + bake island colliders on dock; reverse on undock
+  if (docked && !parked) parkWorld();
+  else if (!docked && parked) unparkWorld();
+
   // HUD — when at the helm or driving from orbit
   if (atHelm || orbit) {
     if (hint) {
       const kn = (nav.speed * 11).toFixed(1);
       const hdg = (((nav.heading * 180 / Math.PI) % 360) + 360) % 360;
       if (docked) {
-        hint.textContent = '⚓ Anchored at Santo Domingo — ashore lies the keep · press K to open the Chronicle';
+        hint.textContent = '⚓ Anchored at Santo Domingo — press C to walk the deck, leap from the rail (Space) to swim ashore · K for the Chronicle';
       } else if (atHelm || Math.abs(nav.speed) > 0.01 || navKeys.has('KeyW') || navKeys.has('KeyS') || navKeys.has('KeyA') || navKeys.has('KeyD')) {
         hint.textContent = `⚓ heading ${hdg.toFixed(0)}° · ${kn} kn · anchor ${anchorUp ? 'UP' : 'DOWN'} · `
           + `Santo Domingo ${range > 9000 ? '—' : Math.round(range) + 'm'}  ·  W/S throttle · A/D steer · Space anchor`
@@ -389,12 +420,11 @@ function updateEffects(dt) {
 // ---------------------------------------------------------------------------
 await initPhysics();
 const physWorld = createWorld();
-const colliderCount = addStaticColliders(physWorld, [
+addStaticColliders(physWorld, [
   ...ship.userData.colliders.walkable,
   ...ship.userData.colliders.solid,
 ]);
 addSeaPlane(physWorld, -30);
-console.log('[brig] physics colliders built:', colliderCount);
 
 const player = createPlayer(scene, ship, camera, renderer,
   { onBell: playBell, onBroadside, onCapstan: playCreak }, physWorld);
@@ -433,6 +463,7 @@ if (location.hash.includes('walk')) setWalkMode();
 if (location.hash.includes('helm')) { setWalkMode(); player.takeHelm(); }
 if (location.hash.includes('talk')) { setWalkMode(); player.talkTo(0); }
 if (location.hash.includes('fire')) { onBroadside(); }
+if (location.hash.includes('swim')) { setWalkMode(); player.debugSwim(); }
 if (location.hash.includes('sail')) {
   ship.userData.nav.speed = 0.7; controls.autoRotate = false;
   camera.position.set(34, 13, 40); controls.target.set(0, 3, 14); controls.update();

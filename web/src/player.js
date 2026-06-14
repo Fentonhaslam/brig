@@ -4,7 +4,10 @@
 
 import * as THREE from 'three';
 import { createCharacter } from './physics/world.js';
+import { waveHeight, SEA_LEVEL } from './world/waves.js';
 
+const SWIM_SPEED = 3.0;
+const JUMP_VEL = 7.5;
 const PLAYER_RADIUS = 0.34;
 const CAP_HALF = 0.55;                 // capsule half-height (cylinder part)
 const CAP_OFFSET = CAP_HALF + PLAYER_RADIUS; // body centre → feet
@@ -201,6 +204,9 @@ function buildAvatar() {
 // ---------------------------------------------------------------------------
 export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = null) {
   let char = null; // Rapier kinematic capsule + controller (created on enable)
+  let grounded = false;
+  let swimming = false;
+  const seaPos = ship.userData.seaPos || new THREE.Vector3();
   const avatar = buildAvatar();
   avatar.visible = false;
   scene.add(avatar);
@@ -547,6 +553,58 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     if (hint) hint.textContent = 'Press E to continue';
   }
 
+  function updateSwim(dt) {
+    // swim relative to where the camera looks (same basis as walking)
+    const mf = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
+    const mr = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+    const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+    let dx = (-sinY) * mf + (cosY) * mr;
+    let dz = (-cosY) * mf + (-sinY) * mr;
+    const mlen = Math.hypot(dx, dz), moving = mlen > 1e-4;
+    if (moving) { dx = dx / mlen * SWIM_SPEED * dt; dz = dz / mlen * SWIM_SPEED * dt; }
+
+    // float to the wave surface (head out), or sink while holding Shift to dive
+    const surf = waveHeight(pos.x + seaPos.x, pos.z + seaPos.z, tAccum);
+    const diving = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const targetFeet = diving ? Math.max(-6, pos.y - 1.4) : surf - 0.45;
+    const dy = Math.max(-0.25, Math.min(0.25, (targetFeet - pos.y) * Math.min(1, dt * 4)));
+
+    if (char) {
+      char.controller.computeColliderMovement(char.collider, { x: dx, y: dy, z: dz });
+      const mv = char.controller.computedMovement();
+      const tr = char.body.translation();
+      char.body.setNextKinematicTranslation({ x: tr.x + mv.x, y: tr.y + mv.y, z: tr.z + mv.z });
+      phys.step();
+      grounded = char.controller.computedGrounded();
+      const c = char.body.translation();
+      pos.set(c.x, c.y - CAP_OFFSET, c.z);
+    } else { pos.x += dx; pos.z += dz; }
+
+    // climbed onto land above the waterline → back to walking
+    if (grounded && pos.y > SEA_LEVEL + 0.3) swimming = false;
+    if (pos.y < -18) respawn();
+
+    // avatar — upright breaststroke, facing travel direction
+    if (moving) { facing = Math.atan2(dx, dz); walkPhase += dt * 6; }
+    let df = facing - avatar.rotation.y; df = Math.atan2(Math.sin(df), Math.cos(df));
+    avatar.rotation.y += df * Math.min(1, dt * 8);
+    avatar.position.copy(pos);
+    const s = Math.sin(walkPhase);
+    avatar.userData.legs[0].rotation.x = s * 0.4;
+    avatar.userData.legs[1].rotation.x = -s * 0.4;
+    avatar.userData.arms[0].rotation.x = -1.0 + s * 0.9;
+    avatar.userData.arms[1].rotation.x = -1.0 - s * 0.9;
+
+    // low third-person camera near the waterline
+    const target = new THREE.Vector3(pos.x, pos.y + 0.9, pos.z);
+    const cp = Math.cos(pitch);
+    const dirBack = new THREE.Vector3(Math.sin(yaw) * cp, Math.sin(pitch), Math.cos(yaw) * cp);
+    camera.position.copy(target).addScaledVector(dirBack, CAM_DIST * 0.8);
+    if (camera.position.y < 0.5) camera.position.y = 0.5;
+    camera.lookAt(target);
+    if (hint) hint.textContent = 'Swimming · WASD swim · hold Shift to dive · reach the beach to climb ashore';
+  }
+
   function update(dt) {
     if (!enabled) return;
     dt = Math.min(dt, 0.05);
@@ -566,6 +624,7 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     }
     if (helmActive) { updateHelm(dt); return; }
     if (talking) { updateDialogue(dt); return; }
+    if (swimming) { updateSwim(dt); return; }
 
     // desired horizontal direction in camera space
     const mf = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
@@ -583,16 +642,20 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     // Drive the kinematic capsule through Rapier's character controller:
     // it resolves walls, slopes, auto-steps stairs and snaps to the deck.
     if (char) {
+      if (keys.has('Space') && grounded && velY <= 0.01) velY = JUMP_VEL; // leap
       velY -= GRAVITY * dt;
       char.controller.computeColliderMovement(char.collider, { x: dx, y: velY * dt, z: dz });
       const mv = char.controller.computedMovement();
       const tr = char.body.translation();
       char.body.setNextKinematicTranslation({ x: tr.x + mv.x, y: tr.y + mv.y, z: tr.z + mv.z });
       phys.step();
-      if (char.controller.computedGrounded()) velY = 0;
+      grounded = char.controller.computedGrounded();
+      if (grounded) velY = 0;
       const c = char.body.translation();
       pos.set(c.x, c.y - CAP_OFFSET, c.z); // pos tracks the feet
-      if (pos.y < -14) respawn();
+      // fell/leapt into the sea — start swimming
+      if (!grounded && pos.y < SEA_LEVEL + 0.4) { swimming = true; velY = 0; }
+      if (pos.y < -16) respawn();
     } else {
       pos.x += dx; pos.z += dz; // physics unavailable — flat fallback
     }
@@ -646,6 +709,7 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     enabled = false;
     avatar.visible = false;
     keys.clear();
+    swimming = false;
     if (talking) endDialogue();
     if (helmActive) { helmActive = false; ship.rotation.set(0, 0, 0); ship.position.set(0, 0, 0); }
     if (document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
@@ -665,10 +729,16 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     talkTo(i) { if (npcs[i]) { pos.copy(worldOf(npcs[i].local)); pos.x += 2.0; startDialogue(npcs[i]); } },
     // snapshot of where this player is, for broadcasting to other clients
     sample() {
-      if (enabled) return { x: pos.x, y: pos.y, z: pos.z, heading: avatar.rotation.y, mode: helmActive ? 'helm' : 'walk' };
+      if (enabled) return { x: pos.x, y: pos.y, z: pos.z, heading: avatar.rotation.y, mode: helmActive ? 'helm' : (swimming ? 'swim' : 'walk') };
       return { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z, heading: 0, mode: 'aboard' };
     },
     get enabled() { return enabled; },
     get atHelm() { return helmActive; },
+    debugSwim() {
+      if (!enabled) enable();
+      swimming = true;
+      pos.set(11, 0.5, 2);
+      if (char) char.body.setTranslation({ x: 11, y: 0.5 + CAP_OFFSET, z: 2 }, true);
+    },
   };
 }

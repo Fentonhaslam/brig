@@ -24,6 +24,7 @@ const MAT = {
 function building(grp, x, z, w, d, h, rot = 0) {
   const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.wallW);
   b.position.set(x, h / 2, z); b.rotation.y = rot; b.castShadow = true; b.receiveShadow = true;
+  b.userData.solid = true;
   grp.add(b);
   const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.75, h * 0.5, 4), MAT.roof);
   roof.position.set(x, h + h * 0.24, z); roof.rotation.y = rot + Math.PI / 4;
@@ -77,15 +78,15 @@ export function createIslands() {
   hisp.add(town);
   // fort with corner bastions
   const fort = new THREE.Mesh(new THREE.BoxGeometry(26, 12, 22), MAT.fort);
-  fort.position.set(-34, 6, -8); fort.castShadow = true; town.add(fort);
+  fort.position.set(-34, 6, -8); fort.castShadow = true; fort.userData.solid = true; town.add(fort);
   for (const [bx, bz] of [[-46, -18], [-22, -18], [-46, 2], [-22, 2]]) {
     const bast = new THREE.Mesh(new THREE.CylinderGeometry(4, 4.5, 14, 8), MAT.fort);
-    bast.position.set(bx, 7, bz); town.add(bast);
+    bast.position.set(bx, 7, bz); bast.userData.solid = true; town.add(bast);
   }
   // church with bell tower + cross
   building(town, 18, -6, 12, 20, 12);
   const tower = new THREE.Mesh(new THREE.BoxGeometry(7, 22, 7), MAT.wallW);
-  tower.position.set(24, 11, -12); tower.castShadow = true; town.add(tower);
+  tower.position.set(24, 11, -12); tower.castShadow = true; tower.userData.solid = true; town.add(tower);
   const cv = new THREE.Mesh(new THREE.BoxGeometry(0.6, 3, 0.6), MAT.cross);
   cv.position.set(24, 24, -12); town.add(cv);
   const ch = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 0.6), MAT.cross);
@@ -103,9 +104,9 @@ export function createIslands() {
   keep.position.set(54, 8, -78);
   hisp.add(keep);
   const hall = new THREE.Mesh(new THREE.BoxGeometry(20, 14, 16), MAT.fort);
-  hall.position.y = 7; hall.castShadow = true; hall.receiveShadow = true; keep.add(hall);
+  hall.position.y = 7; hall.castShadow = true; hall.receiveShadow = true; hall.userData.solid = true; keep.add(hall);
   const keepTower = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.5, 26, 10), MAT.fort);
-  keepTower.position.set(-8, 13, -6); keepTower.castShadow = true; keep.add(keepTower);
+  keepTower.position.set(-8, 13, -6); keepTower.castShadow = true; keepTower.userData.solid = true; keep.add(keepTower);
   // crenellations
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
@@ -136,7 +137,7 @@ export function createIslands() {
   dock.position.set(-6, 0, -150);
   hisp.add(dock);
   const pier = new THREE.Mesh(new THREE.BoxGeometry(7, 1.2, 60), MAT.wood);
-  pier.position.set(0, 1.6, -28); pier.castShadow = true; dock.add(pier);
+  pier.position.set(0, 1.6, -28); pier.castShadow = true; pier.userData.walkable = true; dock.add(pier);
   for (let i = 0; i < 10; i++) {
     for (const px of [-3, 3]) {
       const pile = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 6, 6), MAT.wood);
@@ -165,6 +166,33 @@ export function createIslands() {
     m.position.set(-700 + i * 180, h / 2 - 10, Math.sin(i) * 120);
     main.add(m);
   }
+
+  // ---- WALKABLE LAND: a gentle beach you can swim onto + the town plateau ----
+  const beachMat = new THREE.MeshStandardMaterial({ color: 0xcdb585, roughness: 1.0 });
+  // a broad, gentle beach ramp from below the waterline up to the town plateau
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(46, 1, 56), beachMat);
+  ramp.position.set(0, 3.5, -138);
+  ramp.rotation.x = -0.175;                 // -z (seaward) low, +z (inland) high
+  ramp.receiveShadow = true;
+  ramp.userData.walkable = true;
+  hisp.add(ramp);
+  // flat walkable plateau under the whole settlement
+  const plateau = new THREE.Mesh(new THREE.BoxGeometry(190, 1, 170), beachMat);
+  plateau.position.set(18, 7.45, -70);      // top at ~7.95, meets building bottoms (y8)
+  plateau.receiveShadow = true;
+  plateau.userData.walkable = true;
+  hisp.add(plateau);
+
+  // collect the island's collidable meshes (mirrors ship.userData.colliders)
+  const walkable = [], solid = [];
+  grp.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.userData.walkable) walkable.push(o);
+    else if (o.userData.solid) solid.push(o);
+  });
+  grp.userData.colliders = { walkable, solid };
+  // where the player is set down when going ashore (worldGroup-local; top of beach)
+  grp.userData.shore = new THREE.Vector3(-110 + 0, 8.4, 380 - 118);
 
   // dock head position (in world-group coordinates) used for docking checks
   grp.userData.dock = new THREE.Vector3(-110 - 6, 0, 380 - 150 - 56);
