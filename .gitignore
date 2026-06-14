@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.log
+.vite/
+.vercel/
+
+# commercial music track — kept local, not published (swap for a licensed one)
+web/public/theme.mp3
