@@ -1,5 +1,7 @@
 # Brig
 
+**▶ Play: https://brig-sevilla.vercel.app**
+
 An online 3D world set on a 16th-century Spanish nao departing Sevilla for the
 Indies, c. 1519. Sign in, sail a shared sea with other players in real time,
 and write the world's history at the keep on Hispaniola — where each entry of
