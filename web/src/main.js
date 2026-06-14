@@ -17,7 +17,7 @@ import { listLore, addLore, subscribeLore } from './net/lore.js';
 import { createMonuments } from './world/monuments.js';
 import { mountChronicle } from './net/chronicle.js';
 import { initPhysics, createWorld, addStaticColliders, addSeaPlane, removeColliders } from './physics/world.js';
-import { sampleBuoyancy } from './world/waves.js';
+import { sampleBuoyancy, waveHeight } from './world/waves.js';
 
 // ---------------------------------------------------------------------------
 // Enlist / sign in before the world is built (RuneScape-style account gate).
@@ -112,6 +112,39 @@ const { sky, setSun } = createSky(scene, sun);
 const water = createWater(scene, sun);
 const ship = createShip(scene);
 
+// Drifting cloud billboards for sky depth (cheap, tinted by the day cycle)
+const clouds = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 18; i++) {
+    const px = 40 + ((i * 53) % 176), py = 60 + ((i * 97) % 136), r = 30 + (i % 4) * 22;
+    const g = x.createRadialGradient(px, py, 0, px, py, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  const group = new THREE.Group();
+  const sprites = [];
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false, fog: true });
+    const s = new THREE.Sprite(m);
+    const a = (i / 16) * Math.PI * 2, rad = 1100 + (i % 4) * 420;
+    s.position.set(Math.cos(a) * rad, 420 + (i % 5) * 70, Math.sin(a) * rad);
+    s.scale.set(700 + (i % 3) * 280, 300 + (i % 3) * 90, 1);
+    group.add(s); sprites.push(s);
+  }
+  scene.add(group);
+  const col = new THREE.Color();
+  return {
+    update(d, dt) {
+      group.rotation.y += dt * 0.004;            // slow drift
+      const o = 0.12 + 0.5 * d;
+      col.copy(FOG_NIGHT).lerp(new THREE.Color(0xfff0d8), d);
+      for (const s of sprites) { s.material.opacity = o; s.material.color.copy(col); }
+    },
+  };
+})();
+
 // The "world group" holds everything that should slide past the ship as she
 // sails — Sevilla astern, La Española and the mainland ahead. The ship stays
 // at the origin; steering rotates this group and making way translates it.
@@ -177,6 +210,10 @@ function updateWake(speed) {
   bowR.material.opacity = op; bowR.scale.set(0.6 + 0.7 * s, 0.5 + s, 1);
   mustache.material.opacity = op; mustache.scale.set(0.7 + 0.6 * s, 0.6 + 0.8 * s, 1);
   sternWash.material.opacity = op * 0.9; sternWash.scale.set(0.5 + 1.1 * s, 0.4 + 1.6 * s, 1);
+  // ride the swell so foam sits on the surface instead of clipping it
+  for (const f of [bowL, bowR, mustache, sternWash]) {
+    f.position.y = 0.18 + waveHeight(f.position.x + shipPosV.x, f.position.z + shipPosV.z, elapsed * 0.9);
+  }
 }
 
 // --- driving from the cinematic view: WASD steers/throttles the ship ---------
@@ -288,10 +325,6 @@ function setTimeOfDay(frac) {
   renderer.toneMappingExposure = 0.5 + 0.3 * d;
   scene.fog.color.copy(FOG_NIGHT).lerp(FOG_DAY, d);
   scene.fog.density = 0.0016 + 0.0007 * (1 - d);
-
-  if (water.material.uniforms['sunDirection']) {
-    water.material.uniforms['sunDirection'].value.copy(sun).normalize();
-  }
 }
 setTimeOfDay(dayFrac);
 
@@ -583,6 +616,7 @@ function animate() {
   // Advance the day → night cycle
   dayFrac = (dayFrac + dt / DAY_LENGTH) % 1;
   setTimeOfDay(dayFrac);
+  clouds.update(Math.max(0, Math.sin(dayFrac * Math.PI * 2)), dt);
 
   // Cannon-smoke / muzzle-flash effects
   updateEffects(dt);
@@ -590,10 +624,8 @@ function animate() {
   // Sailing — slide the world past the ship when under way at the helm
   updateSailing(dt);
 
-  // Ocean shader time
-  if (water.material.uniforms['time']) {
-    water.material.uniforms['time'].value = elapsed * 0.6;
-  }
+  // Ocean — advance wave time + scroll the swell under the ship as she sails
+  water.userData.update(elapsed * 0.9, shipPosV.x, shipPosV.z);
 
   if (player.enabled) {
     // Walking aboard — keep the deck level and steady underfoot

@@ -9,5 +9,15 @@ export default defineConfig({
   // supported by all current browsers.
   build: {
     target: 'esnext',
+    chunkSizeWarningLimit: 3500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+          rapier: ['@dimforge/rapier3d-compat'],
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
 });

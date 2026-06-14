@@ -953,9 +953,12 @@ function buildSquareSail(width, height, cross = false) {
   const boltGeo = new THREE.BufferGeometry().setFromPoints(ep);
   mesh.add(new THREE.LineSegments(boltGeo, MAT.rope));
 
-  // flutter — amplitude eases off as the sail is taken in
+  // flutter — amplitude eases off as the sail is taken in. Skip entirely when
+  // furled, and recompute the (expensive) normals only every 3rd frame.
   mesh.userData.deploy = 1;
+  let frame = 0;
   mesh.userData.update = (t) => {
+    if (mesh.userData.deploy < 0.05 || !mesh.visible) return;
     const amp = 0.35 + 0.65 * mesh.userData.deploy;
     const p = mesh.geometry.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -966,7 +969,7 @@ function buildSquareSail(width, height, cross = false) {
       p.setZ(i, baseZ[i] + flutter * amp);
     }
     p.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
+    if ((frame++ % 3) === 0) mesh.geometry.computeVertexNormals();
   };
 
   return mesh;

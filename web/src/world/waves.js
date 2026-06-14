@@ -18,6 +18,9 @@ const W = COMPONENTS.map(([dx, dz, amp, len, speed]) => {
   return { dx: dx / l, dz: dz / l, amp, k, w: speed * ((2 * Math.PI) / len) };
 });
 
+// shared with the water shader so GPU surface and CPU sampling never diverge
+export const WAVES = W;
+
 export const SEA_LEVEL = 0;
 
 // vertical height of the sea surface at world (x,z) and time t
