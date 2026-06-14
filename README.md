@@ -1,6 +1,9 @@
 # Brig
 
-**▶ Play: https://brig-sevilla.vercel.app**
+**▶ Play: https://web-black-nu-50.vercel.app**
+
+(A prettier `brig-sevilla.vercel.app` alias exists too — enable it by turning off
+Vercel → project → Settings → Deployment Protection → *Vercel Authentication*.)
 
 An online 3D world set on a 16th-century Spanish nao departing Sevilla for the
 Indies, c. 1519. Sign in, sail a shared sea with other players in real time,
