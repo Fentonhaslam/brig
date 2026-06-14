@@ -3,8 +3,11 @@
 // the ship's tagged `walkable` (floors/stairs) and `solid` (walls/rails) meshes.
 
 import * as THREE from 'three';
+import { createCharacter } from './physics/world.js';
 
 const PLAYER_RADIUS = 0.34;
+const CAP_HALF = 0.55;                 // capsule half-height (cylinder part)
+const CAP_OFFSET = CAP_HALF + PLAYER_RADIUS; // body centre → feet
 const EYE = 1.55;
 const STEP_UP = 0.6;         // max ledge/step height the sailor can climb
 const GRAVITY = 20;
@@ -196,7 +199,8 @@ function buildAvatar() {
 // ---------------------------------------------------------------------------
 // Controller
 // ---------------------------------------------------------------------------
-export function createPlayer(scene, ship, camera, renderer, hooks = {}) {
+export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = null) {
+  let char = null; // Rapier kinematic capsule + controller (created on enable)
   const avatar = buildAvatar();
   avatar.visible = false;
   scene.add(avatar);
@@ -305,6 +309,7 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}) {
   function respawn() {
     pos.copy(SPAWN);
     velY = 0;
+    if (char) char.body.setTranslation({ x: SPAWN.x, y: SPAWN.y + CAP_OFFSET, z: SPAWN.z }, true);
   }
 
   // -- the helm --------------------------------------------------------------
@@ -573,20 +578,21 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}) {
     const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
     if (moving) { dx = dx / mlen * speed * dt; dz = dz / mlen * speed * dt; }
 
-    // horizontal move, axis-separated for wall sliding
-    if (!blocked(dx, 0)) pos.x += dx;
-    if (!blocked(0, dz)) pos.z += dz;
-
-    // vertical — stand, step up, or fall
-    const groundY = sampleGround(pos.x, pos.z);
-    if (groundY !== null && groundY >= pos.y - 0.02 && groundY <= pos.y + STEP_UP) {
-      pos.y = groundY;
-      velY = 0;
-    } else {
+    // Drive the kinematic capsule through Rapier's character controller:
+    // it resolves walls, slopes, auto-steps stairs and snaps to the deck.
+    if (char) {
       velY -= GRAVITY * dt;
-      pos.y += velY * dt;
-      if (groundY !== null && pos.y <= groundY) { pos.y = groundY; velY = 0; }
-      if (pos.y < -8) respawn();
+      char.controller.computeColliderMovement(char.collider, { x: dx, y: velY * dt, z: dz });
+      const mv = char.controller.computedMovement();
+      const tr = char.body.translation();
+      char.body.setNextKinematicTranslation({ x: tr.x + mv.x, y: tr.y + mv.y, z: tr.z + mv.z });
+      phys.step();
+      if (char.controller.computedGrounded()) velY = 0;
+      const c = char.body.translation();
+      pos.set(c.x, c.y - CAP_OFFSET, c.z); // pos tracks the feet
+      if (pos.y < -14) respawn();
+    } else {
+      pos.x += dx; pos.z += dz; // physics unavailable — flat fallback
     }
 
     // orient + animate the avatar
@@ -629,6 +635,9 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}) {
   function enable() {
     enabled = true;
     avatar.visible = true;
+    if (phys && !char) {
+      char = createCharacter(phys, { x: SPAWN.x, y: SPAWN.y + CAP_OFFSET, z: SPAWN.z });
+    }
     respawn();
   }
   function disable() {

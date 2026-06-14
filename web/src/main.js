@@ -15,6 +15,7 @@ import { joinWorld } from './net/presence.js';
 import { listLore, addLore, subscribeLore } from './net/lore.js';
 import { createMonuments } from './world/monuments.js';
 import { mountChronicle } from './net/chronicle.js';
+import { initPhysics, createWorld, addStaticColliders, addSeaPlane } from './physics/world.js';
 
 // ---------------------------------------------------------------------------
 // Enlist / sign in before the world is built (RuneScape-style account gate).
@@ -370,8 +371,21 @@ function updateEffects(dt) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Physics — Rapier world with trimesh colliders baked from the ship geometry.
+// The player walks it via a kinematic capsule + character controller.
+// ---------------------------------------------------------------------------
+await initPhysics();
+const physWorld = createWorld();
+const colliderCount = addStaticColliders(physWorld, [
+  ...ship.userData.colliders.walkable,
+  ...ship.userData.colliders.solid,
+]);
+addSeaPlane(physWorld, -30);
+console.log('[brig] physics colliders built:', colliderCount);
+
 const player = createPlayer(scene, ship, camera, renderer,
-  { onBell: playBell, onBroadside, onCapstan: playCreak });
+  { onBell: playBell, onBroadside, onCapstan: playCreak }, physWorld);
 const hint = document.getElementById('hint');
 
 function setOrbitMode() {
