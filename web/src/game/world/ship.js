@@ -13,7 +13,7 @@
 // }
 
 import {
-  Group, Mesh, Vector3, DoubleSide,
+  Group, Mesh, Vector3, Quaternion, DoubleSide,
   BoxGeometry, CylinderGeometry, PlaneGeometry, TorusGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -30,9 +30,12 @@ const MAT = {
   deck: toonMaterial(0xb07c3e),   // sun-bleached planking
   trim: toonMaterial(0x7a4d28),   // rails / beams
   iron: toonMaterial(0x2b2b30),   // cannons, fittings
-  gold: toonMaterial(0xd6a637),   // gilding
-  red:  toonMaterial(0xb23a2c),   // banners / trim stripe
-  sail: toonMaterial(0xefe4cb, { side: DoubleSide }),
+  gold: toonMaterial(0xb98a2e),   // gilding (weathered brass — less neon)
+  red:  toonMaterial(0x9c3528),   // banners / trim stripe (deeper, more serious)
+  sail: toonMaterial(0xddcfae, { side: DoubleSide }), // weathered canvas
+  rope: toonMaterial(0x6a5a3a),   // rigging / cordage
+  cask: toonMaterial(0x6f4a28),   // barrels / crates
+  glass: toonMaterial(0xf6cf7a),  // lantern glow
 };
 
 // hull half-width at a length fraction (0 stern .. 1 bow): full midships,
@@ -63,6 +66,16 @@ function makeBuilder() {
       const g = new CylinderGeometry(rt, rb, h, seg);
       if (rot) { g.rotateX(rot[0] || 0); g.rotateY(rot[1] || 0); g.rotateZ(rot[2] || 0); }
       g.translate(x, y, z);
+      add(mat, g);
+    },
+    // a strut/line between two points a=[x,y,z], b=[x,y,z]
+    seg(mat, a, b, th = 0.05) {
+      const dir = new Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      const len = dir.length();
+      if (len < 1e-4) return;
+      const g = new BoxGeometry(th, th, len);
+      g.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), dir.normalize()));
+      g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
       add(mat, g);
     },
     raw(mat, g) { add(mat, g); },
@@ -158,6 +171,103 @@ export function createShip() {
 
   // --- BOWSPRIT ---
   B.cyl(MAT.trim, 0.12, 0.2, 7, 0, DECK_Y + 1.2, SHIP_LENGTH / 2 + 1.5, 6, [Math.PI / 2.4, 0, 0]);
+
+  // --- WALES (horizontal rub-rails down the hull) + GUNPORT LIDS ---
+  for (let i = 0; i < 12; i++) {
+    const z01 = (i + 0.5) / 12;
+    const z = -SHIP_LENGTH / 2 + z01 * SHIP_LENGTH;
+    const w = widthAt(z01);
+    const seg = (SHIP_LENGTH / 12) * 1.02;
+    for (const wy of [DECK_Y - 1.1, DECK_Y - 2.1]) {
+      B.box(MAT.trim, 0.16, 0.28, seg, w, wy, z);
+      B.box(MAT.trim, 0.16, 0.28, seg, -w, wy, z);
+    }
+  }
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 4; k++) {
+      const z = -6 + k * 4;
+      const z01 = (z + SHIP_LENGTH / 2) / SHIP_LENGTH;
+      const w = widthAt(z01);
+      B.box(MAT.iron, 0.05, 0.62, 0.62, side * (w + 0.02), DECK_Y - 0.1, z); // port frame
+    }
+  }
+
+  // --- HATCHES: raised coaming + grating bars (main + fore) ---
+  function hatch(cx, cz, w, l) {
+    B.box(MAT.trim, w + 0.3, 0.3, 0.18, cx, DECK_Y + 0.15, cz - l / 2);
+    B.box(MAT.trim, w + 0.3, 0.3, 0.18, cx, DECK_Y + 0.15, cz + l / 2);
+    B.box(MAT.trim, 0.18, 0.3, l, cx - w / 2, DECK_Y + 0.15, cz);
+    B.box(MAT.trim, 0.18, 0.3, l, cx + w / 2, DECK_Y + 0.15, cz);
+    for (let i = 0; i <= 5; i++) B.box(MAT.iron, w, 0.04, 0.04, cx, DECK_Y + 0.12, cz - l / 2 + (i / 5) * l);
+    for (let i = 0; i <= 6; i++) B.box(MAT.iron, 0.04, 0.04, l, cx - w / 2 + (i / 6) * w, DECK_Y + 0.12, cz);
+  }
+  hatch(0, 2, 2.0, 2.6);
+  hatch(0, 6.5, 1.5, 1.8);
+
+  // --- CAPSTAN BARS (radial) ---
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    B.cyl(MAT.trim, 0.05, 0.05, 2.0, Math.sin(a) * 0.9, DECK_Y + 1.05, 4.5 + Math.cos(a) * 0.9, 5, [0, a, Math.PI / 2]);
+  }
+
+  // --- ANCHOR + CATHEAD at the bow (starboard) ---
+  {
+    const bx = SHIP_BEAM * 0.34, bz = SHIP_LENGTH * 0.4;
+    B.box(MAT.trim, 0.4, 0.4, 2.0, bx, DECK_Y + 0.5, bz + 0.6); // cathead beam
+    const ay = DECK_Y - 1.4;
+    B.box(MAT.iron, 0.16, 2.4, 0.16, bx + 0.4, ay, bz + 1.2);          // shank
+    B.box(MAT.iron, 1.7, 0.16, 0.16, bx + 0.4, ay + 1.0, bz + 1.2);    // stock
+    B.box(MAT.iron, 0.7, 0.16, 0.16, bx + 0.0, ay - 1.0, bz + 1.2, [0, 0, 0.6]);  // fluke
+    B.box(MAT.iron, 0.7, 0.16, 0.16, bx + 0.8, ay - 1.0, bz + 1.2, [0, 0, -0.6]); // fluke
+  }
+
+  // --- DECK CLUTTER: barrels, crates, rope coils, ship's boat ---
+  for (const [x, z] of [[-2.6, -0.5], [-2.6, 0.6], [2.6, 5.0], [-2.4, -6.2], [2.4, -6.0]]) {
+    B.cyl(MAT.cask, 0.42, 0.42, 1.0, x, DECK_Y + 0.5, z, 8);
+    B.cyl(MAT.iron, 0.44, 0.44, 0.1, x, DECK_Y + 0.25, z, 8);
+    B.cyl(MAT.iron, 0.44, 0.44, 0.1, x, DECK_Y + 0.75, z, 8);
+  }
+  for (const [x, z, s] of [[2.2, 4.0, 0.8], [2.6, 4.4, 0.6], [1.9, 4.5, 0.7]]) {
+    B.box(MAT.cask, s, s, s, x, DECK_Y + s / 2, z);
+  }
+  for (const [x, z] of [[-3.0, 3.0], [3.0, 1.0], [-3.0, -3.5]]) {
+    B.cyl(MAT.rope, 0.32, 0.36, 0.18, x, DECK_Y + 0.09, z, 10); // coil of line
+  }
+  // ship's boat stowed over the booms amidships
+  B.box(MAT.cask, 1.5, 0.7, 3.6, 0, DECK_Y + 1.7, -1.5);
+
+  // --- STERN LANTERN ---
+  B.box(MAT.gold, 0.5, 0.7, 0.5, 0, DECK_Y + 3.4, -SHIP_LENGTH / 2 + 0.7);
+  B.box(MAT.glass, 0.34, 0.5, 0.34, 0, DECK_Y + 3.4, -SHIP_LENGTH / 2 + 0.7);
+
+  // --- STANDING RIGGING: shrouds, ratlines, stays (one rope bucket) ---
+  const mastDefs = [
+    { z: SHIP_LENGTH * 0.28, top: 11 }, // fore
+    { z: 0, top: 15 },                  // main
+    { z: -SHIP_LENGTH * 0.3, top: 10 }, // mizzen
+  ];
+  for (const m of mastDefs) {
+    const headY = DECK_Y + m.top - 1.5;
+    const z01 = (m.z + SHIP_LENGTH / 2) / SHIP_LENGTH;
+    const w = widthAt(z01) * 0.96;
+    for (const side of [-1, 1]) {
+      const offsets = [-1.3, 0, 1.3];
+      // shrouds fan from the masthead to three channel points on the bulwark
+      const channels = offsets.map((o) => [side * w, DECK_Y + 0.7, m.z + o]);
+      const head = [0, headY, m.z];
+      channels.forEach((c) => B.seg(MAT.rope, head, c, 0.045));
+      // ratlines: rungs across the outer two shrouds at rising heights
+      const a = channels[0], c = channels[2];
+      for (let r = 1; r <= 6; r++) {
+        const f = r / 7;
+        const p1 = [a[0] + (head[0] - a[0]) * f, a[1] + (head[1] - a[1]) * f, a[2] + (head[2] - a[2]) * f];
+        const p2 = [c[0] + (head[0] - c[0]) * f, c[1] + (head[1] - c[1]) * f, c[2] + (head[2] - c[2]) * f];
+        B.seg(MAT.rope, p1, p2, 0.03);
+      }
+    }
+    // fore-and-aft stay
+    B.seg(MAT.rope, [0, headY, m.z], [0, DECK_Y + 1.2, m.z + m.top * 0.9], 0.05);
+  }
 
   // commit all static merged geometry (outline the rails & castles silhouette)
   B.commit(root, [MAT.trim]);

@@ -21,15 +21,18 @@ import { toonMaterial, withOutline } from './core/toon.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
+import { createCrew } from './world/crew.js';
+import { createPeers } from './player/peers.js';
+import { joinWorld } from '../net/presence.js';
 
 const canvas = document.getElementById('c');
 const renderer = createRenderer(canvas);
 const stats = createStats();
 
 const scene = new Scene();
-const FOG = 0xcfe8ef; // bright hazy horizon
+const FOG = 0xd7dcc8; // warm, slightly green haze — grounded Fable mood
 scene.background = new Color(FOG);
-scene.fog = new Fog(FOG, 300, 1700);
+scene.fog = new Fog(FOG, 320, 1800);
 
 const camera = new PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 6000);
 window.addEventListener('resize', () => {
@@ -40,20 +43,23 @@ window.addEventListener('resize', () => {
 // --- light direction shared by sky + water + the sun lamp ---
 const sunDir = new Vector3(0.45, 0.55, -0.8).normalize();
 
-// bright, saturated, Wind Waker key light + a restrained skylight fill so the
-// toon ramp's shadow band stays visible (a strong fill washes the cel look out)
-const hemi = new HemisphereLight(0xcdefff, 0x4a6b3a, 0.6);
+// warm golden key light + soft earthy fill — grounded, not bright-cartoon
+const hemi = new HemisphereLight(0xdfe6d2, 0x55503a, 0.7);
 scene.add(hemi);
-const sun = new DirectionalLight(0xfff2cf, 2.1);
+const sun = new DirectionalLight(0xffe4b0, 1.9);
 sun.position.copy(sunDir).multiplyScalar(200);
 scene.add(sun);
 
 const sky = createSky(scene);
-sky.setSun(sunDir, 0xfff2cf, 0xfde6b8, 0x49b6e0);
+sky.setSun(sunDir, 0xffe9c0, 0xf0dcae, 0x6f9ec2);
 const water = createWater(scene);
+// moodier, deeper sea (less neon turquoise) for the more serious tone
+water.material.uniforms.uDeep.value.set(0x123f4a);
+water.material.uniforms.uShallow.value.set(0x2d8a82);
+water.material.uniforms.uSky.value.set(0xbfd8cf);
 water.update(0, sunDir);
 water.material.uniforms.uFogColor.value.set(FOG);
-water.material.uniforms.uFogFar.value = 1700;
+water.material.uniforms.uFogFar.value = 1800;
 
 // --- a low-poly island, MERGED into one draw call per material -------------
 // Demonstrates the geometry strategy for the whole rebuild: build modular
@@ -99,7 +105,7 @@ function buildIsland() {
     if (!geos.length) continue;
     const merged = mergeGeometries(geos, false);
     merged.computeVertexNormals();
-    const mesh = new Mesh(merged, toonMaterial(color, { flatShading: true }));
+    const mesh = new Mesh(merged, toonMaterial(color));
     if (outline) withOutline(mesh, 0.18);
     group.add(mesh);
   }
@@ -143,6 +149,16 @@ ship.colliders.forEach((c) => physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c
 const SPAWN = new Vector3(0, ship.deckY + 1.6, 3);
 const player = createPlayer(physics, scene, SPAWN);
 
+// the ship's company (named crew at their stations)
+const crew = createCrew(scene, ship);
+
+// other live players over Supabase Realtime (guest co-presence, no login gate)
+const peers = createPeers(scene, ship.deckY);
+const guestId = 'guest-' + Math.floor(Math.random() * 1e7);
+const handle = 'Sailor ' + (1000 + Math.floor(Math.random() * 9000));
+const world = joinWorld({ handle, userId: guestId });
+world.onPeers((p) => peers.sync(p));
+
 // --- input + modes ('walk' | 'helm') ---
 const input = createInput(canvas, camera);
 let mode = 'walk';
@@ -171,6 +187,31 @@ hint.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-
   + 'font:600 14px/1.4 system-ui,sans-serif;color:#fff;background:rgba(10,30,45,.55);'
   + 'padding:8px 16px;border-radius:20px;letter-spacing:.3px;pointer-events:none;backdrop-filter:blur(3px)';
 document.body.appendChild(hint);
+
+// dialogue box (talk to the crew)
+const dlg = document.createElement('div');
+dlg.style.cssText = 'position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:60;'
+  + 'max-width:520px;display:none;font:15px/1.5 Georgia,serif;color:#f3e8cf;'
+  + 'background:linear-gradient(180deg,rgba(28,22,14,.93),rgba(18,14,9,.95));'
+  + 'padding:14px 20px;border:1px solid rgba(180,150,90,.5);border-radius:8px;'
+  + 'box-shadow:0 10px 30px rgba(0,0,0,.5)';
+document.body.appendChild(dlg);
+let talking = null;
+function showDialogue(npc) {
+  talking = npc;
+  dlg.innerHTML = `<div style="color:#d8b46a;font:600 13px system-ui;letter-spacing:.5px;margin-bottom:6px">`
+    + `${npc.name.toUpperCase()} · ${npc.title}</div><div>${npc.lines[0]}</div>`
+    + `<div style="color:#9a8a66;font:11px system-ui;margin-top:8px">F to close</div>`;
+  dlg.style.display = 'block';
+}
+function hideDialogue() { talking = null; dlg.style.display = 'none'; }
+
+let nearNpc = null; // crew member in range this frame
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyF') return;
+  if (talking) hideDialogue();
+  else if (nearNpc && mode === 'walk') showDialogue(nearNpc);
+});
 
 // --- sailing state ---
 const nav = { speed: 0, heading: 0 }; // speed 0..1, heading radians
@@ -202,9 +243,14 @@ function updateWalk(dt) {
   if (player.feetY < -4) player.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
 
   camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
-  hint.textContent = player.position.distanceTo(ship.helm) < 3.5
-    ? 'Press E to take the helm'
-    : 'Click to move · WASD to walk · Shift to run';
+
+  // crew proximity / interaction
+  nearNpc = crew.nearest(player.position, 2.6);
+  if (talking && (!nearNpc || nearNpc !== talking)) hideDialogue();
+
+  if (player.position.distanceTo(ship.helm) < 3.5) hint.textContent = 'Press E to take the helm';
+  else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
+  else hint.textContent = 'Click to move · WASD to walk · Shift to run';
 }
 
 function updateHelm(dt) {
@@ -236,9 +282,15 @@ function frame(now) {
   water.update(t, sunDir);
   ship.update(t);
   ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.25 * (mode === 'helm' ? 1 : 0.2);
+  crew.update(t);
+  peers.update(dt);
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
+
+  // broadcast our position to other players (throttled inside)
+  const pp = player.position;
+  world.update({ x: pp.x, y: player.feetY, z: pp.z, heading: 0, mode }, performance.now());
 
   orbit.update();
   renderer.render(scene, camera);
