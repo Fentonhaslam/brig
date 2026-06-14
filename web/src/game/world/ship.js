@@ -236,8 +236,25 @@ export function createShip() {
     fp.needsUpdate = true;
   }
 
+  // --- physics colliders (static cuboids; ship sits at the world origin so
+  // local == world). Deck floor + raised castles + bulwark walls that keep the
+  // player aboard. {hx,hy,hz,x,y,z}
+  const colliders = [
+    // main deck floor (top surface at DECK_Y)
+    { hx: SHIP_BEAM * 0.4, hy: 0.3, hz: SHIP_LENGTH * 0.46, x: 0, y: DECK_Y - 0.3, z: 0 },
+    // forecastle deck (raised, fwd)
+    { hx: SHIP_BEAM * 0.34, hy: 0.2, hz: 2.5, x: 0, y: DECK_Y + 0.8, z: SHIP_LENGTH * 0.34 },
+    // quarterdeck (raised, aft)
+    { hx: SHIP_BEAM * 0.38, hy: 0.2, hz: 3.25, x: 0, y: DECK_Y + 1.0, z: -SHIP_LENGTH * 0.32 },
+    // bulwark walls (port / starboard / bow / stern)
+    { hx: 0.25, hy: 0.9, hz: SHIP_LENGTH * 0.46, x: SHIP_BEAM * 0.42, y: DECK_Y + 0.6, z: 0 },
+    { hx: 0.25, hy: 0.9, hz: SHIP_LENGTH * 0.46, x: -SHIP_BEAM * 0.42, y: DECK_Y + 0.6, z: 0 },
+    { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: SHIP_LENGTH * 0.46 },
+    { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: -SHIP_LENGTH * 0.46 },
+  ];
+
   return {
     root, deckY: DECK_Y, length: SHIP_LENGTH, beam: SHIP_BEAM,
-    sails, wheel, helm, capstanPos, setSails, update,
+    sails, wheel, helm, capstanPos, colliders, setSails, update,
   };
 }

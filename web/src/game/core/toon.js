@@ -16,7 +16,9 @@ import {
 let _ramp = null;
 export function toonRamp() {
   if (_ramp) return _ramp;
-  const steps = new Uint8Array([70, 130, 200, 255]); // shadow -> lit, banded
+  // Bold two-tone split (deep shadow band, bright lit band) with one narrow
+  // mid step — the hard-edged "inked cartoon" Wind Waker look.
+  const steps = new Uint8Array([78, 96, 240, 255]);
   _ramp = new DataTexture(steps, steps.length, 1, RedFormat);
   _ramp.minFilter = NearestFilter;
   _ramp.magFilter = NearestFilter;

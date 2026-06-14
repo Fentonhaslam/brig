@@ -5,7 +5,7 @@
 // Built at /game.html so the live Babylon site stays up until this is proven.
 
 import {
-  Scene, PerspectiveCamera, Color, Fog, Vector3,
+  Scene, PerspectiveCamera, Color, Fog, Vector3, Group, Object3D, MathUtils,
   HemisphereLight, DirectionalLight,
   Mesh, ConeGeometry, CylinderGeometry, IcosahedronGeometry,
 } from 'three';
@@ -18,6 +18,9 @@ import { createSky } from './world/sky.js';
 import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
 import { toonMaterial, withOutline } from './core/toon.js';
+import { initPhysics } from './core/physics.js';
+import { createPlayer } from './player/player.js';
+import { createInput } from './player/input.js';
 
 const canvas = document.getElementById('c');
 const renderer = createRenderer(canvas);
@@ -103,15 +106,123 @@ function buildIsland() {
   group.position.set(150, 0, -170);
   return group;
 }
-scene.add(buildIsland());
+
+// The world (islands + future skyline) lives under a group whose transform is
+// the INVERSE of the ship's world pose. The ship stays fixed at the origin
+// pointing north — so its deck is a clean static physics collider — while the
+// world slides and turns past it as you sail. (A moving deck would make the
+// character controller fight a moving platform; this sidesteps that entirely.)
+const worldGroup = new Group();
+worldGroup.matrixAutoUpdate = false;
+worldGroup.add(buildIsland());
+scene.add(worldGroup);
+
+const shipAnchor = new Object3D();
+let shipYaw = 0;
+const shipPos = new Vector3();
+function syncWorld() {
+  shipAnchor.position.copy(shipPos);
+  shipAnchor.rotation.set(0, shipYaw, 0);
+  shipAnchor.updateMatrix();
+  worldGroup.matrix.copy(shipAnchor.matrix).invert();
+}
+syncWorld();
 
 // --- the ship, riding at the origin ---
 const ship = createShip();
 scene.add(ship.root);
 
-// --- orbital camera framing the ship ---
-const orbit = createOrbitCam(camera, canvas, new Vector3(0, ship.deckY + 2, 0));
-orbit.setRadius(34);
+// --- orbital camera ---
+const camTarget = new Vector3(0, ship.deckY + 1.4, 2);
+const orbit = createOrbitCam(camera, canvas, camTarget);
+orbit.setRadius(24);
+
+// --- physics + player ---
+const physics = await initPhysics();
+ship.colliders.forEach((c) => physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z));
+const SPAWN = new Vector3(0, ship.deckY + 1.6, 3);
+const player = createPlayer(physics, scene, SPAWN);
+
+// --- input + modes ('walk' | 'helm') ---
+const input = createInput(canvas, camera);
+let mode = 'walk';
+let moveTarget = null;
+
+input.onClick((ray) => {
+  if (mode !== 'walk') return;
+  const hits = ray.intersectObjects([ship.root, worldGroup], true);
+  if (hits.length) moveTarget = hits[0].point.clone();
+});
+
+// E toggles the helm when you're standing near the wheel
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyE') return;
+  if (mode === 'walk' && player.position.distanceTo(ship.helm) < 3.5) {
+    mode = 'helm'; moveTarget = null; player.setVisible(false);
+  } else if (mode === 'helm') {
+    mode = 'walk'; player.setVisible(true);
+    player.teleport(ship.helm.x, ship.deckY + 1.6, ship.helm.z + 1.5);
+  }
+});
+
+// hint strip
+const hint = document.createElement('div');
+hint.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;'
+  + 'font:600 14px/1.4 system-ui,sans-serif;color:#fff;background:rgba(10,30,45,.55);'
+  + 'padding:8px 16px;border-radius:20px;letter-spacing:.3px;pointer-events:none;backdrop-filter:blur(3px)';
+document.body.appendChild(hint);
+
+// --- sailing state ---
+const nav = { speed: 0, heading: 0 }; // speed 0..1, heading radians
+const SAIL_SPEED = 26;
+
+const UP = new Vector3(0, 1, 0);
+const fwd = new Vector3();
+const right = new Vector3();
+const dir = new Vector3();
+
+function updateWalk(dt) {
+  const ax = input.moveAxis();
+  if (ax.x || ax.z) {
+    moveTarget = null;
+    camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+    right.crossVectors(fwd, UP).normalize();
+    dir.copy(fwd).multiplyScalar(ax.z).addScaledVector(right, -ax.x);
+    if (dir.lengthSq() > 0) dir.normalize();
+    player.walk(dir.x, dir.z, input.running());
+  } else if (moveTarget) {
+    const p = player.position;
+    dir.set(moveTarget.x - p.x, 0, moveTarget.z - p.z);
+    if (dir.length() < 0.5) { moveTarget = null; }
+    else { dir.normalize(); player.walk(dir.x, dir.z, false); }
+  }
+  player.update(dt);
+
+  // fell overboard -> respawn on deck
+  if (player.feetY < -4) player.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
+
+  camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
+  hint.textContent = player.position.distanceTo(ship.helm) < 3.5
+    ? 'Press E to take the helm'
+    : 'Click to move · WASD to walk · Shift to run';
+}
+
+function updateHelm(dt) {
+  const ax = input.moveAxis();
+  nav.speed = MathUtils.clamp(nav.speed + ax.z * dt * 0.5, 0, 1);
+  nav.heading += -ax.x * dt * 0.7;
+  ship.setSails(nav.speed > 0.02 ? 1 : 0.15);
+
+  if (nav.speed > 0.001) {
+    shipYaw = nav.heading;
+    shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * dt;
+    shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * dt;
+    syncWorld();
+  }
+  // camera sits behind the ship looking forward over the bow
+  camTarget.lerp(new Vector3(0, ship.deckY + 2.2, 1), 0.15);
+  hint.textContent = `⛵ Helm — W/S sail (${Math.round(nav.speed * 100)}%) · A/D steer · E to step away`;
+}
 
 // --- loop ---
 let last = performance.now();
@@ -121,10 +232,15 @@ function frame(now) {
   last = now;
   t += dt;
 
+  physics.step(dt);
   water.update(t, sunDir);
   ship.update(t);
-  orbit.update();
+  ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.25 * (mode === 'helm' ? 1 : 0.2);
 
+  if (mode === 'walk') updateWalk(dt);
+  else updateHelm(dt);
+
+  orbit.update();
   renderer.render(scene, camera);
   stats.update(dt, renderer);
   requestAnimationFrame(frame);
