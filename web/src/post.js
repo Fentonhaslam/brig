@@ -73,7 +73,14 @@ const CinematicGradeShader = {
 };
 
 export function createPostProcessing(renderer, scene, camera) {
-  const composer = new EffectComposer(renderer);
+  // Multisampled render target so the composer keeps MSAA edges (WebGL2),
+  // instead of discarding the renderer's antialiasing.
+  const dpr = renderer.getPixelRatio();
+  const rt = new THREE.WebGLRenderTarget(
+    Math.floor(window.innerWidth * dpr), Math.floor(window.innerHeight * dpr),
+    { type: THREE.HalfFloatType, samples: 4 }
+  );
+  const composer = new EffectComposer(renderer, rt);
   composer.setSize(window.innerWidth, window.innerHeight);
 
   composer.addPass(new RenderPass(scene, camera));

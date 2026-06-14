@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { createSky } from './sky.js';
 import { createWater } from './water.js';
@@ -16,6 +17,7 @@ import { listLore, addLore, subscribeLore } from './net/lore.js';
 import { createMonuments } from './world/monuments.js';
 import { mountChronicle } from './net/chronicle.js';
 import { initPhysics, createWorld, addStaticColliders, addSeaPlane } from './physics/world.js';
+import { sampleBuoyancy } from './world/waves.js';
 
 // ---------------------------------------------------------------------------
 // Enlist / sign in before the world is built (RuneScape-style account gate).
@@ -43,6 +45,12 @@ document.body.appendChild(renderer.domElement);
 // ---------------------------------------------------------------------------
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0xd8a070, 0.0018);
+
+// Image-based lighting — gives every metal/gold/glass material real reflections
+// (one-time PMREM bake, ~0 per-frame cost). Subtle so it complements the grade.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.4;
 
 // ---------------------------------------------------------------------------
 // Camera — 35mm cinematic, low hero angle
@@ -74,7 +82,8 @@ sunLight.shadow.camera.left = -70;
 sunLight.shadow.camera.right = 70;
 sunLight.shadow.camera.top = 70;
 sunLight.shadow.camera.bottom = -70;
-sunLight.shadow.bias = -0.0005;
+sunLight.shadow.bias = -0.0002;
+sunLight.shadow.normalBias = 0.02;
 scene.add(sunLight);
 scene.add(sunLight.target);
 
@@ -153,6 +162,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('keyup', (e) => navKeys.delete(e.code));
+window.addEventListener('blur', () => { navKeys.clear(); oHeadingVel = 0; }); // don't run away on focus loss
 
 function driveShip(dt) {
   const nav = ship.userData.nav;
@@ -189,12 +199,14 @@ function updateSailing(dt) {
   worldGroup.position.copy(shipPosV).multiplyScalar(-1).applyAxisAngle(_yAxis, -nav.heading);
   updateWake(nav.speed);
 
+  // docked state kept fresh every frame (not just at the helm)
+  const dock = islands.userData.dock;
+  const range = dock ? Math.hypot(dock.x - shipPosV.x, dock.z - shipPosV.z) : 9999;
+  const anchorUp = ship.userData.anchor ? ship.userData.anchor.up : true;
+  docked = range < 70 && !anchorUp;
+
   // HUD — when at the helm or driving from orbit
   if (atHelm || orbit) {
-    const dock = islands.userData.dock;
-    const range = dock ? Math.hypot(dock.x - shipPosV.x, dock.z - shipPosV.z) : 9999;
-    const anchorUp = ship.userData.anchor ? ship.userData.anchor.up : true;
-    docked = range < 70 && !anchorUp;
     if (hint) {
       const kn = (nav.speed * 11).toFixed(1);
       const hdg = (((nav.heading * 180 / Math.PI) % 360) + 360) % 360;
@@ -567,10 +579,11 @@ function animate() {
       torch.intensity = 0;
     }
   } else {
-    // Cinematic — ship gently rides the swell (pitch + roll)
-    ship.rotation.z = Math.sin(elapsed * 0.45) * 0.018;
-    ship.rotation.x = Math.sin(elapsed * 0.38 + 1.1) * 0.012;
-    ship.position.y = Math.sin(elapsed * 0.5) * 0.18 - 0.05;
+    // Cinematic — the ship rides the actual wave field (heave + pitch + roll)
+    const b = sampleBuoyancy(shipPosV.x, shipPosV.z, elapsed, 14, 5);
+    ship.position.y = b.y;
+    ship.rotation.x = b.pitch;
+    ship.rotation.z = b.roll;
     controls.update();
   }
 
@@ -585,7 +598,7 @@ function animate() {
     const m = av.userData.meta;
     if (!m) continue;
     av.position.x += (m.x - av.position.x) * 0.18;
-    av.position.y += ((m.y ?? 3.1) - av.position.y) * 0.18;
+    av.position.y += ((m.y ?? 3.5) - av.position.y) * 0.18;
     av.position.z += (m.z - av.position.z) * 0.18;
     if (typeof m.heading === 'number') av.rotation.y = m.heading;
   }

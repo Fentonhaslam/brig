@@ -313,7 +313,7 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
   }
 
   // -- the helm --------------------------------------------------------------
-  const helm = ship.userData.helm || new THREE.Vector3(0, 5.5, -8);
+  const helm = ship.userData.helmStand || new THREE.Vector3(0, 5.5, -8);
   function helmWorld() { return ship.localToWorld(helm.clone()); }
   function nearHelm() {
     return pos.distanceTo(helmWorld()) < 2.4;
@@ -341,11 +341,12 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
       });
     }
     if (capstanStation) {
-      const weighing = anchor && anchor.up;
+      // anchor.up === true means stowed → next action is to LET GO (lower it)
+      const stowed = anchor && anchor.up;
       list.push({
         world: worldOf(capstanStation), range: 2.6,
         prompt: anchor
-          ? `Press E to ${weighing ? 'let go the' : 'weigh the'} anchor (man the capstan)`
+          ? `Press E to ${stowed ? 'let go the' : 'weigh the'} anchor (man the capstan)`
           : 'Press E to man the capstan',
         activate: () => {
           capstanSpin = 4.5; hooks.onCapstan?.();
@@ -496,7 +497,8 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     ship.position.y = Math.sin(tAccum * 0.7) * 0.1 * (0.4 + 0.6 * speed);
     ship.updateMatrixWorld(true);
 
-    if (ship.userData.wheel) ship.userData.wheel.rotation.z = -nav.heading * 3;
+    // wheel reflects steering input (returns to centre), not absolute heading
+    if (ship.userData.wheel) ship.userData.wheel.rotation.z = -headingVel * 6;
 
     // helmsman stands at the wheel, facing the bow, hands on the spokes
     const stand = helm.clone(); ship.localToWorld(stand);
@@ -664,7 +666,7 @@ export function createPlayer(scene, ship, camera, renderer, hooks = {}, phys = n
     // snapshot of where this player is, for broadcasting to other clients
     sample() {
       if (enabled) return { x: pos.x, y: pos.y, z: pos.z, heading: avatar.rotation.y, mode: helmActive ? 'helm' : 'walk' };
-      return { x: 2.6 * (ship.userData.scale || 1), y: 2.25 * (ship.userData.scale || 1), z: 0, heading: 0, mode: 'aboard' };
+      return { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z, heading: 0, mode: 'aboard' };
     },
     get enabled() { return enabled; },
     get atHelm() { return helmActive; },

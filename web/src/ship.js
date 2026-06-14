@@ -2403,7 +2403,7 @@ export function createShip(scene) {
   const furniture = buildDeckFurniture();
   ship.add(furniture);
   ship.userData.wheel = furniture.userData.wheel;
-  ship.userData.helm = new THREE.Vector3(0, DECK_Y + 0.3 + 2.6 + 0.18, -8.05); // where the helmsman stands
+  ship.userData.helmStand = new THREE.Vector3(0, DECK_Y + 0.3 + 2.6 + 0.18, -8.05); // where the helmsman stands
   ship.userData.capstan = furniture.userData.capstan;
   ship.userData.capstanStation = new THREE.Vector3(0, 2.25, 5.9);
 

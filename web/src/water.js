@@ -6,8 +6,7 @@ import { Water } from 'three/addons/objects/Water.js';
 export function createWater(scene, sunDirection) {
   const waterGeo = new THREE.PlaneGeometry(20000, 20000, 256, 256);
 
-  const normalsURL =
-    'https://threejs.org/examples/textures/waternormals.jpg';
+  const normalsURL = '/waternormals.jpg'; // vendored — no external dependency
 
   const water = new Water(waterGeo, {
     textureWidth: 1024,
