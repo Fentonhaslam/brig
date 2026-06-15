@@ -46,7 +46,8 @@ function initWind() {
 }
 
 export function createWeather({ scene, water, sky, camera }) {
-  let storm = 0, target = 0, timer = 12, flash = 0, strikeTimer = 3;
+  let storm = 0, target = 0, timer = 12, flash = 0, strikeTimer = 3, windClock = 0;
+  const windBase = 0.6; // prevailing wind heading (radians), drifts slowly
   const armWind = () => { if (!windGain) initWind(); };
   window.addEventListener('pointerdown', armWind);
   window.addEventListener('keydown', armWind);
@@ -80,6 +81,7 @@ export function createWeather({ scene, water, sky, camera }) {
   const _c = new Color();
 
   function update(dt) {
+    windClock += dt;
     // drift the weather: mostly fair, sometimes a blow
     timer -= dt;
     if (timer <= 0) {
@@ -141,6 +143,10 @@ export function createWeather({ scene, water, sky, camera }) {
   return {
     update,
     get storm() { return storm; },
+    // wind: strength 0..1 (a base breeze + the storm + a gust wobble) and a
+    // slowly drifting heading
+    get wind() { return Math.min(1, 0.12 + storm * 0.85 + Math.sin(windClock * 1.3) * 0.08 * storm); },
+    get windDir() { return windBase + Math.sin(windClock * 0.04) * 0.7; },
     setStorm(v) { target = v; storm = v; timer = 60; },
   };
 }

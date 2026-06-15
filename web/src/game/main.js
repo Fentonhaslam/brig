@@ -417,25 +417,35 @@ function updateHelm(dt) {
   }
   nav.speed = MathUtils.clamp(nav.speed + ax.z * dt * 0.5, 0, 1);
   nav.heading += -ax.x * dt * 0.7;                          // steering sets a target heading…
+  // wind: a crosswind nudges the head, and you make more way with the wind
+  // astern than beating into it — but gently, so the helm stays in command
+  const wind = weather.wind, windDir = weather.windDir;
+  const rel = Math.atan2(Math.sin(windDir - shipYaw), Math.cos(windDir - shipYaw)); // -PI..PI off the bow
+  nav.heading += Math.sin(rel) * wind * 0.18 * dt;          // subtle weather-helm
   shipYaw = MathUtils.damp(shipYaw, nav.heading, 2.4, dt);  // …the hull eases onto it (no snap)
   ship.setSails(0.18 + 0.82 * nav.speed);                   // canvas fills with way
   ship.wheel.rotation.y += -ax.x * dt * 2.2;                // spin the wheel as you steer
 
-  shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * dt;
-  shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * dt;
+  const windAid = 1 + Math.cos(rel) * wind * 0.3;           // tail-wind boosts, head-wind slows
+  shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * windAid * dt;
+  shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * windAid * dt;
   syncWorld();
 
   // camera sits behind the ship looking forward over the bow
   camTarget.lerp(new Vector3(0, ship.deckY + 2.2, 1), 0.15);
   hint.textContent = '⛵ Helm — W/S sail · A/D steer · E to step away';
 
-  // compass + speed readout
+  // compass + speed + wind readout
   const deg = (((shipYaw * 180) / Math.PI) % 360 + 360) % 360;
   const card = COMPASS[Math.round(deg / 45) % 8];
   const spd = Math.round(nav.speed * 100);
+  const windPct = Math.round(wind * 100);
+  const windRotDeg = (rel * 180) / Math.PI; // wind heading relative to the bow (up)
   helmHud.innerHTML = `<div>🧭 ${card} · ${Math.round(deg)}°&nbsp;&nbsp;·&nbsp;&nbsp;⛵ ${spd}%</div>`
     + `<div style="margin-top:6px;height:6px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden">`
-    + `<div style="height:100%;width:${spd}%;background:linear-gradient(90deg,#c9923a,#f0d070);transition:width .15s"></div></div>`;
+    + `<div style="height:100%;width:${spd}%;background:linear-gradient(90deg,#c9923a,#f0d070);transition:width .15s"></div></div>`
+    + `<div style="margin-top:6px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px">`
+    + `<span style="display:inline-block;transform:rotate(${windRotDeg.toFixed(0)}deg)">⬆</span> wind ${windPct}%</div>`;
 }
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
