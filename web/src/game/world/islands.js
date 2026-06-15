@@ -16,6 +16,7 @@ import {
   IcosahedronGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toonMaterial, withOutline } from '../core/toon.js';
 import { woodGrain, stone, mottle } from '../core/textures.js';
 import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
@@ -26,6 +27,7 @@ function makeBuilder() {
   const add = (hex, g) => { (buckets.get(hex) || buckets.set(hex, []).get(hex)).push(g); };
   return {
     box(hex, w, h, d, x, y, z) { const g = new BoxGeometry(w, h, d); g.translate(x, y, z); add(hex, g); },
+    rbox(hex, w, h, d, x, y, z, r = 0.18) { const g = new RoundedBoxGeometry(w, h, d, 2, r); g.translate(x, y, z); add(hex, g); },
     cyl(hex, rt, rb, h, x, y, z, seg = 7) { const g = new CylinderGeometry(rt, rb, h, seg); g.translate(x, y, z); add(hex, g); },
     cone(hex, r, h, x, y, z, seg = 6) { const g = new ConeGeometry(r, h, seg); g.translate(x, y, z); add(hex, g); },
     ico(hex, r, detail, sx, sy, sz, x, y, z) {
@@ -95,7 +97,7 @@ function buildHispaniola() {
     B.cone(C.leaf, 4.2, 3.6, x, 9.5, z, 6);
   }
   for (const [hx, hz] of [[10, 60], [18, 66], [2, 70], [24, 58], [-8, 66]]) { // town on the rise
-    B.box(C.wall, 6, 5, 6, hx, 5.5, hz);
+    B.rbox(C.wall, 6, 5, 6, hx, 5.5, hz, 0.3);
     B.cone(C.roof, 5.2, 4, hx, 10, hz, 4);
   }
 
@@ -169,7 +171,7 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     B.box(C.stone, 13, 1.4, 1.4, ...at(0, 9.0, 30));
     B.box(C.roof, 19, 1.0, 13.5, ...at(0, 9.4, 36));
     B.cyl(C.stone, 3.0, 3.4, 14, ...at(-11, 9.4, 42), 10);
-    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.box(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8)); }
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.rbox(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8)); }
     B.box(C.cream, 0.35, 4, 0.35, ...at(0, 11, 31));
     B.box(C.red, 2.6, 1.6, 0.18, ...at(1.3, 11.8, 31));
   } else { // 'city' — a walkable plaza with flanking houses + a cathedral facade
