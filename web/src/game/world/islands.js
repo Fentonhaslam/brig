@@ -51,92 +51,131 @@ const C = {
   red: 0x9c3528, cream: 0xe8dcc0,
 };
 
+const BOW_GAP = 18;                                  // how far ahead of the bow the quay sits
+const HARBOUR_LOCAL = new Vector3(0, 0, -72);        // Hispaniola quay front (island-local)
+const SEVILLA_HARBOUR_LOCAL = new Vector3(0, 0, 38); // Sevilla quay front, on its sea (north) edge
+
 function buildHispaniola() {
   const g = new Group();
   const B = makeBuilder();
 
   // landmass: a low island set well INLAND (centre at z=ZC) so its sandy shore
   // begins behind the harbour — the quay reaches out over the water in front of
-  // it and the land rises beyond. (Centring it on the harbour buried the quay.)
+  // it and the land rises beyond.
   const ZC = 75;
   B.ico(C.sand, 95, 1, 1, 0.08, 1, 0, 1.0, ZC);
   B.ico(C.grass, 72, 1, 1, 0.1, 1, 0, 3.0, ZC);
   B.cone(C.grass, 30, 14, -26, 8, ZC + 16, 6);
   B.cone(C.rock, 22, 18, 30, 10, ZC - 4, 6);
 
-  // palms round the shore
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 14; i++) { // palms round the shore
     const a = (i / 14) * Math.PI * 2;
     const x = Math.cos(a) * 70, z = ZC + Math.sin(a) * 70;
     B.cyl(C.trunk, 0.6, 0.9, 7, x, 5, z, 5);
     B.cone(C.leaf, 4.2, 3.6, x, 9.5, z, 6);
   }
-
-  // a little port town on the rise behind the keep
-  for (const [hx, hz] of [[10, 60], [18, 66], [2, 70], [24, 58], [-8, 66]]) {
+  for (const [hx, hz] of [[10, 60], [18, 66], [2, 70], [24, 58], [-8, 66]]) { // town on the rise
     B.box(C.wall, 6, 5, 6, hx, 5.5, hz);
     B.cone(C.roof, 5.2, 4, hx, 10, hz, 4);
   }
 
-  // the walkable harbour (low quay + gangway + keep) at the seaward edge
-  const harbour = buildHarbour(B);
-  harbour.group = g; // dynamic props (memory-stones) parent here, riding with the island
-  // courtyard anchor (island-local) — where lore stones stand, in front of the keep
-  harbour.courtyard = { x: 0, y: 2.5, z: HARBOUR_LOCAL.z + 14 };
+  const harbour = buildHarbour(B, {
+    local: HARBOUR_LOCAL, worldOrigin: HISPANIOLA, dir: 1, kind: 'keep', approachYaw: 0, name: 'Santo Domingo',
+  });
+  harbour.group = g;
+  harbour.courtyard = { x: 0, y: 2.5, z: HARBOUR_LOCAL.z + 14 }; // lore stones, in front of the keep
 
   B.commit(g, [C.sand, C.grass, C.stone, C.wood]);
-  g.position.copy(HISPANIOLA); // far across the ocean — out of sight until you near it
+  g.position.copy(HISPANIOLA);
+  return { group: g, harbour };
+}
+
+function buildSevilla() {
+  const g = new Group();
+  const B = makeBuilder();
+  const D = 0x59607a; // city stone — readable up close, hazes to a silhouette far off
+
+  // the grand skyline, set SOUTH (behind the walkable plaza you arrive at)
+  B.box(D, 120, 12, 8, 0, 6, -52);
+  for (let i = 0; i < 9; i++) B.box(D, 9, 12 + (i % 3) * 5, 9, -50 + i * 12, 9, -60);
+  B.cyl(D, 7, 8, 34, -52, 17, -44, 12);     // Torre del Oro
+  B.cyl(D, 4.5, 5, 14, -52, 41, -44, 12);
+  B.box(D, 42, 46, 18, 24, 23, -62);        // cathedral mass
+  B.box(D, 12, 80, 12, 40, 40, -56);        // Giralda shaft
+  B.box(D, 8, 18, 8, 40, 88, -56);          // belfry
+  B.cone(D, 5, 12, 40, 102, -56, 6);        // crown
+
+  const harbour = buildHarbour(B, {
+    local: SEVILLA_HARBOUR_LOCAL, worldOrigin: SEVILLA, dir: -1, kind: 'city', approachYaw: Math.PI, name: 'Sevilla',
+  });
+  harbour.group = g;
+
+  B.commit(g, [C.wood, C.wall, C.stone]);
+  g.position.copy(SEVILLA);
   return { group: g, harbour };
 }
 
 // ---------------------------------------------------------------------------
-// The harbour you actually walk on. Built LOW (quay top at the ship's deck
-// height) at the island's seaward edge so a gangway lies nearly flat from the
-// bow. Everything here is defined relative to Ho (the quay's front-centre,
-// island-local); berthing snaps the ship to a known pose so each piece lands
-// at scene-space `offset + (0,0,bowGap)` — letting us drop matching static
-// colliders without any matrix math. Returns the collider offsets + the world
-// berth point so main.js can detect approach, snap, and add the colliders.
+// A walkable harbour: a low quay (top at the ship's deck height) + a gangway +
+// a landmark structure (Hispaniola's keep, or Sevilla's cathedral plaza). Built
+// relative to `local` (the quay front, in the island group's frame); `dir`
+// flips it front-to-back so each port faces the sea you approach from. Returns
+// the world berth point, the approach heading, the door point and the collider
+// offsets; main.js transforms those through the world matrix at berth time.
 // ---------------------------------------------------------------------------
-const HARBOUR_LOCAL = new Vector3(0, 0, -72); // Ho: seaward edge, island-local
-const BOW_GAP = 18;                            // how far ahead of the bow the quay sits
-
-function buildHarbour(B) {
-  const at = (dx, dy, dz) => [HARBOUR_LOCAL.x + dx, HARBOUR_LOCAL.y + dy, HARBOUR_LOCAL.z + dz];
+function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name }) {
+  const at = (dx, dy, dz) => [local.x + dx, local.y + dy, local.z + dz * dir];
   const colliders = [];
-  // a box that is both drawn and walked on (half-extents hx/hy/hz at offset d)
   const solid = (dx, dy, dz, hx, hy, hz, color) => {
     B.box(color, hx * 2, hy * 2, hz * 2, ...at(dx, dy, dz));
-    colliders.push({ hx, hy, hz, dx, dy, dz });
+    colliders.push({ hx, hy, hz, dx, dy, dz: dz * dir });
   };
 
-  // quay deck — top at y=2.4 (ship deck height); pilings below the front
+  // shared: quay deck + pilings + gangway with rails
   solid(0, 1.8, 22, 12, 0.6, 22, C.wood);
   for (const px of [-10, -5, 0, 5, 10]) B.cyl(C.wood, 0.5, 0.6, 4, ...at(px, -0.4, 1), 6);
-
-  // gangway from the bow to the quay front, with side rails
   solid(0, 2.28, -2.5, 1.8, 0.12, 3.2, C.wood);
   B.box(C.wood, 0.16, 0.5, 6.4, ...at(-1.7, 2.6, -2.5));
   B.box(C.wood, 0.16, 0.5, 6.4, ...at(1.7, 2.6, -2.5));
 
-  // THE KEEP at the head of the quay — walls leave a doorway facing the ship
-  const ky = 5.0;
-  solid(0, ky, 42, 9, 3.6, 0.6, C.stone);     // back wall
-  solid(-9, ky, 36, 0.6, 3.6, 6.5, C.stone);  // left wall
-  solid(9, ky, 36, 0.6, 3.6, 6.5, C.stone);   // right wall
-  solid(-5.5, ky, 30, 3.5, 3.6, 0.6, C.stone);// front, left of door
-  solid(5.5, ky, 30, 3.5, 3.6, 0.6, C.stone); // front, right of door
-  B.box(C.stone, 13, 1.4, 1.4, ...at(0, 9.0, 30));   // door lintel
-  B.box(C.roof, 19, 1.0, 13.5, ...at(0, 9.4, 36));   // roof
-  B.cyl(C.stone, 3.0, 3.4, 14, ...at(-11, 9.4, 42), 10); // tower
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    B.box(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8));
+  let door = { dx: 0, dy: 2.4, dz: 30 };
+  if (kind === 'keep') {
+    const ky = 5.0;
+    solid(0, ky, 42, 9, 3.6, 0.6, C.stone);
+    solid(-9, ky, 36, 0.6, 3.6, 6.5, C.stone);
+    solid(9, ky, 36, 0.6, 3.6, 6.5, C.stone);
+    solid(-5.5, ky, 30, 3.5, 3.6, 0.6, C.stone);
+    solid(5.5, ky, 30, 3.5, 3.6, 0.6, C.stone);
+    B.box(C.stone, 13, 1.4, 1.4, ...at(0, 9.0, 30));
+    B.box(C.roof, 19, 1.0, 13.5, ...at(0, 9.4, 36));
+    B.cyl(C.stone, 3.0, 3.4, 14, ...at(-11, 9.4, 42), 10);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.box(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8)); }
+    B.box(C.cream, 0.35, 4, 0.35, ...at(0, 11, 31));
+    B.box(C.red, 2.6, 1.6, 0.18, ...at(1.3, 11.8, 31));
+  } else { // 'city' — a walkable plaza with flanking houses + a cathedral facade
+    for (const sx of [-1, 1]) {
+      solid(sx * 8.5, 3.0, 16, 3, 2.6, 4, C.wall);
+      B.cone(C.roof, 4.6, 3.2, ...at(sx * 8.5, 7.6, 16), 4);
+      solid(sx * 9, 3.0, 28, 3, 2.6, 3.5, C.wall);
+      B.cone(C.roof, 4.4, 3.0, ...at(sx * 9, 7.4, 28), 4);
+    }
+    B.cyl(C.stone, 1.4, 1.6, 1.2, ...at(0, 3.0, 13), 8);   // a plaza well/cross
+    B.box(C.cream, 0.4, 3.2, 0.4, ...at(0, 5.4, 13));
+    B.box(C.cream, 1.8, 0.4, 0.4, ...at(0, 6.0, 13));
+    const cy = 6.0;                                         // cathedral facade
+    solid(0, cy, 42, 11, 5.0, 0.7, C.wall);
+    solid(-11, cy, 35, 0.7, 5.0, 7, C.wall);
+    solid(11, cy, 35, 0.7, 5.0, 7, C.wall);
+    solid(-6, cy, 28, 4, 5.0, 0.7, C.wall);
+    solid(6, cy, 28, 4, 5.0, 0.7, C.wall);
+    B.box(C.stone, 16, 1.6, 1.6, ...at(0, 11.4, 28));
+    B.box(C.roof, 24, 1.2, 15, ...at(0, 11.8, 36));
+    B.box(C.stone, 5, 22, 5, ...at(-13, 11, 44));          // a bell tower
+    B.cone(C.roof, 3.5, 5, ...at(-13, 24, 44), 4);
+    door = { dx: 0, dy: 2.4, dz: 28 };
   }
-  B.box(C.cream, 0.35, 4, 0.35, ...at(0, 11, 31));   // flagpole
-  B.box(C.red, 2.6, 1.6, 0.18, ...at(1.3, 11.8, 31)); // banner
 
-  // quayside clutter + lamp posts
+  // shared: quayside clutter + lamp posts
   for (const [bx, bz] of [[-7, 8], [-6, 9.4], [7, 10], [6, 12]]) B.cyl(C.trunk, 0.5, 0.5, 1.1, ...at(bx, 2.95, bz), 8);
   for (const lz of [6, 24]) for (const lx of [-9.5, 9.5]) {
     B.cyl(C.trunk, 0.16, 0.2, 4.2, ...at(lx, 4.5, lz), 6);
@@ -144,33 +183,11 @@ function buildHarbour(B) {
   }
 
   return {
-    bowGap: BOW_GAP,
-    worldPoint: HISPANIOLA.clone().add(HARBOUR_LOCAL), // worldGroup-local berth point
-    keepDoor: { dx: 0, dy: 2.4, dz: 30 },
+    name, kind, bowGap: BOW_GAP, approachYaw,
+    worldPoint: worldOrigin.clone().add(local),
+    keepDoor: { dx: door.dx, dy: door.dy, dz: door.dz * dir },
     colliders,
   };
-}
-
-function buildSevilla() {
-  const g = new Group();
-  const B = makeBuilder();
-  const D = 0x2c3850; // hazy dark silhouette
-
-  // city walls + a clutter of rooftops
-  B.box(D, 120, 12, 8, 0, 6, 6);
-  for (let i = 0; i < 9; i++) B.box(D, 9, 12 + (i % 3) * 5, 9, -50 + i * 12, 9, -2);
-  // Torre del Oro (riverside watchtower)
-  B.cyl(D, 7, 8, 34, -52, 17, 14, 12);
-  B.cyl(D, 4.5, 5, 14, -52, 41, 14, 12);
-  // the cathedral mass + La Giralda
-  B.box(D, 42, 46, 18, 24, 23, -4);
-  B.box(D, 12, 80, 12, 40, 40, 2);        // Giralda shaft
-  B.box(D, 8, 18, 8, 40, 88, 2);          // belfry
-  B.cone(D, 5, 12, 40, 102, 2, 6);        // crown
-
-  B.commit(g);
-  g.position.copy(SEVILLA); // astern at the start — the port you're leaving
-  return g;
 }
 
 // --- the map ----------------------------------------------------------------
@@ -188,11 +205,13 @@ export const PLACES = [
   { name: 'Santo Domingo', x: HISPANIOLA.x, z: HISPANIOLA.z },
 ];
 
-// returns { group, places, harbour } to add into the world group
+// returns { group, places, harbours } to add into the world group
 export function buildWorld() {
   const group = new Group();
   const hisp = buildHispaniola();
+  const sev = buildSevilla();
   group.add(hisp.group);
-  group.add(buildSevilla());
-  return { group, places: PLACES, harbour: hisp.harbour };
+  group.add(sev.group);
+  // Hispaniola first — its keep carries the lore courtyard
+  return { group, places: PLACES, harbours: [hisp.harbour, sev.harbour] };
 }

@@ -170,7 +170,7 @@ const peers = createPeers(scene, ship.deckY);
 const { key: guestId, handle } = getIdentity();   // stable across sessions
 const inventory = createInventory({ key: guestId, handle }); // cargo + coin, persisted
 // the world chronicle as memory-stones in the keep courtyard
-const lore = createLore({ group: built.harbour.group, anchor: built.harbour.courtyard, handle, key: guestId });
+const lore = createLore({ group: built.harbours[0].group, anchor: built.harbours[0].courtyard, handle, key: guestId });
 const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
@@ -233,7 +233,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code !== 'KeyF') return;
   if (inscribe.isOpen) { inscribe.hide(); return; }
-  if (berthed && mode === 'walk' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
+  if (berthed && mode === 'walk' && activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
   if (nearNpc && mode === 'walk') { dialogue.open(nearNpc); frameTalk(nearNpc); }
 });
 
@@ -265,37 +265,48 @@ const right = new Vector3();
 const dir = new Vector3();
 
 // --- making landfall ------------------------------------------------------
-// When the harbour comes within range we snap the ship to a clean pose (yaw 0)
-// so the quay lands at a known scene-space spot, then drop matching walkable
-// colliders and open the bow. Casting off removes them and restores the bow.
-const harbour = built.harbour;
-const BERTH_RANGE = 55;
+// Either port can be visited. When a harbour comes within range we snap the
+// ship to that port's approach heading so its quay lands ahead of the bow, then
+// drop its walkable colliders (transformed through the world matrix) and open
+// the bow. Casting off removes them and restores the bow.
+const harbours = built.harbours;
+const BERTH_RANGE = 60;
 const _hp = new Vector3();
+const _cv = new Vector3();
 let berthed = false;
+let activeHarbour = null;
 let harbourBodies = [];
 let swimT = 0; // seconds in the water (auto-rescue fallback)
+const keepDoorScene = new Vector3(0, 0, 1e6); // door of the active port, scene space
 
-function harbourScenePos() { return _hp.copy(harbour.worldPoint).applyMatrix4(worldGroup.matrix); }
-const keepDoorScene = new Vector3(harbour.keepDoor.dx, harbour.keepDoor.dy, harbour.keepDoor.dz + harbour.bowGap);
+function harbourScene(h) { return _hp.copy(h.worldPoint).applyMatrix4(worldGroup.matrix); }
 
-function berth() {
+function berth(h) {
   if (berthed) return;
-  berthed = true;
-  shipYaw = 0; nav.heading = 0; nav.speed = 0;
-  shipPos.set(harbour.worldPoint.x, 0, harbour.worldPoint.z - harbour.bowGap);
+  berthed = true; activeHarbour = h;
+  shipYaw = h.approachYaw; nav.heading = h.approachYaw; nav.speed = 0;
+  // place the ship bowGap back from the quay along the approach heading, so the
+  // quay renders just ahead of the (origin-fixed) bow
+  shipPos.set(h.worldPoint.x - Math.sin(shipYaw) * h.bowGap, 0, h.worldPoint.z - Math.cos(shipYaw) * h.bowGap);
   syncWorld();
-  // walkable colliders: yaw is 0, so each is just offset + (0,0,bowGap)
-  harbourBodies = harbour.colliders.map((c) =>
-    physics.staticCuboid(c.hx, c.hy, c.hz, c.dx, c.dy, c.dz + harbour.bowGap));
+  // colliders: world matrix maps each offset to scene space; the box turns with
+  // the world (-shipYaw) to match the rotated quay meshes
+  const rot = [0, -shipYaw, 0];
+  harbourBodies = h.colliders.map((c) => {
+    _cv.set(h.worldPoint.x + c.dx, h.worldPoint.y + c.dy, h.worldPoint.z + c.dz).applyMatrix4(worldGroup.matrix);
+    return physics.staticCuboid(c.hx, c.hy, c.hz, _cv.x, _cv.y, _cv.z, rot);
+  });
+  keepDoorScene.set(h.worldPoint.x + h.keepDoor.dx, h.worldPoint.y + h.keepDoor.dy, h.worldPoint.z + h.keepDoor.dz).applyMatrix4(worldGroup.matrix);
   if (bowBody) { physics.world.removeRigidBody(bowBody.body); bowBody = null; }
   mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
-  player.teleport(0, ship.deckY + 1.6, 11); // on the bow, by the gangway
+  player.teleport(0, ship.deckY + 1.6, 11); // on the bow (origin-fixed), by the gangway
   ship.setSails(0.12);
 }
 
 function castOff() {
   if (!berthed) return;
-  berthed = false;
+  berthed = false; activeHarbour = null;
+  keepDoorScene.set(0, 0, 1e6);
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
   const c = ship.colliders[bowIdx];
@@ -347,9 +358,12 @@ function updateWalk(dt) {
       : 'Overboard! Swim back to the ship';
   } else if (berthed && player.position.z > 15) {
     // ashore on the quay
-    hint.textContent = player.position.distanceTo(keepDoorScene) < 6
-      ? 'The Keep of Santo Domingo — press F to inscribe a memory-stone'
-      : 'Ashore at Santo Domingo — walk to the keep · return to the helm to cast off';
+    const port = activeHarbour?.name || 'port';
+    if (activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) {
+      hint.textContent = `The Keep of ${port} — press F to inscribe a memory-stone`;
+    } else {
+      hint.textContent = `Ashore at ${port} — explore · return to the helm to cast off`;
+    }
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
@@ -402,8 +416,12 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  // jump to just off Santo Domingo, ready to auto-berth next frame
-  approachHarbour() { this.setShip(harbour.worldPoint.x, harbour.worldPoint.z - 40, 0); },
+  harbours, get activeHarbour() { return activeHarbour; },
+  // jump to just off a port (default Santo Domingo), ready to auto-berth
+  approachHarbour(name) {
+    const h = harbours.find((x) => x.name === name) || harbours[0];
+    this.setShip(h.worldPoint.x - Math.sin(h.approachYaw) * 38, h.worldPoint.z - Math.cos(h.approachYaw) * 38, h.approachYaw);
+  },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
 };
 
@@ -419,10 +437,12 @@ function frame(now) {
   mapAcc += dt;
   if (mapAcc > 0.15) { minimap.update(); mapAcc = 0; } // ~6 Hz, cheap
 
-  // auto-berth once the harbour comes within range
+  // auto-berth at whichever port comes within range
   if (!berthed) {
-    const hp = harbourScenePos();
-    if (Math.hypot(hp.x, hp.z) < BERTH_RANGE) berth();
+    for (const h of harbours) {
+      const p = harbourScene(h);
+      if (Math.hypot(p.x, p.z) < BERTH_RANGE) { berth(h); break; }
+    }
   }
 
   physics.step(dt);
