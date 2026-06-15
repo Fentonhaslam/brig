@@ -18,6 +18,7 @@ import { createSky } from './world/sky.js';
 import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
+import { createDayNight } from './world/daynight.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -114,6 +115,9 @@ const post = createPost(renderer, scene, camera);
 
 // theme music (starts on first interaction; 🔊 / M to mute)
 createAudio('/theme.mp3', 0.4);
+
+// day/night cycle — drives sun, sky, sea, fog, lantern + bloom together
+const dayNight = createDayNight({ sun, hemi, sky, water, scene, post, lantern });
 
 // --- physics + player ---
 const physics = await initPhysics();
@@ -267,7 +271,8 @@ function frame(now) {
   t += dt;
 
   physics.step(dt);
-  water.update(t, sunDir);
+  const sd = dayNight.update(dt);
+  water.update(t, sd);
   ship.update(t);
   ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.25 * (mode === 'helm' ? 1 : 0.2);
   crew.update(t);
