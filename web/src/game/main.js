@@ -480,7 +480,8 @@ function frame(now) {
   const sd = dayNight.update(dt);
   water.update(t, sd, null, nav.speed); // wake strengthens with sail speed
   weather.update(dt);                   // storms layer over the time of day
-  ship.update(t);
+  ship.update(t, weather.storm);        // sails + banner whip with the wind
+  orbit.setStorm(weather.storm);        // the view rocks in a swell
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);

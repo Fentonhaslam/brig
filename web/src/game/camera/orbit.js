@@ -37,6 +37,7 @@ export function createOrbitCam(camera, dom, target = new Vector3(0, 1.5, 0)) {
     radius = MathUtils.clamp(radius * (1 + Math.sign(e.deltaY) * 0.1), minR, maxR);
   }, { passive: false });
 
+  let storm = 0; // weather sway amount (0..1)
   const tmp = new Vector3();
   function update() {
     const h = Math.sin(pitch) * radius;
@@ -46,8 +47,17 @@ export function createOrbitCam(camera, dom, target = new Vector3(0, 1.5, 0)) {
       target.y + h,
       target.z + Math.cos(yaw) * r,
     );
+    // a storm rocks the view — heave + sway in position, a touch of roll — so
+    // the world feels like it's pitching without ever tilting the (walkable) deck
+    if (storm > 0.01) {
+      const t = performance.now() * 0.001, s = storm;
+      tmp.y += Math.sin(t * 1.25) * 0.7 * s;
+      tmp.x += Math.sin(t * 0.85) * 0.6 * s;
+      tmp.z += Math.cos(t * 1.05) * 0.6 * s;
+    }
     camera.position.lerp(tmp, 0.18); // gentle smoothing
     camera.lookAt(target);
+    if (storm > 0.01) camera.rotateZ(Math.sin(performance.now() * 0.001 * 1.1) * 0.045 * storm);
   }
 
   return {
@@ -58,5 +68,6 @@ export function createOrbitCam(camera, dom, target = new Vector3(0, 1.5, 0)) {
     setRadius(r) { radius = MathUtils.clamp(r, minR, maxR); },
     setYaw(y) { yaw = y; },
     setPitch(pp) { pitch = MathUtils.clamp(pp, minPitch, maxPitch); },
+    setStorm(s) { storm = s; },
   };
 }

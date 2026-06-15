@@ -29,8 +29,27 @@ function thunder(dist = 0.5) {
   } catch {}
 }
 
+// a low wind-howl loop whose volume rises with the storm (armed on first gesture)
+let windGain = null;
+function initWind() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const a = actx, len = (a.sampleRate * 2) | 0;
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf; src.loop = true;
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480;
+    windGain = a.createGain(); windGain.gain.value = 0;
+    src.connect(lp).connect(windGain).connect(a.destination); src.start();
+  } catch {}
+}
+
 export function createWeather({ scene, water, sky, camera }) {
   let storm = 0, target = 0, timer = 12, flash = 0, strikeTimer = 3;
+  const armWind = () => { if (!windGain) initWind(); };
+  window.addEventListener('pointerdown', armWind);
+  window.addEventListener('keydown', armWind);
 
   // --- driving rain: short vertical line streaks in a box that rides the camera
   const N = 2600, RANGE = 70, HBOX = 60, L = 1.5;
@@ -113,6 +132,8 @@ export function createWeather({ scene, water, sky, camera }) {
     if (flash > 0) { flash = Math.max(0, flash - dt * 3.5); }
     // a double-tick flicker reads as a real strike
     flashEl.style.opacity = (flash * (0.55 + 0.45 * Math.sin(flash * 40))).toFixed(3);
+
+    if (windGain) windGain.gain.value = storm * storm * 0.28; // howl rises with the gale
 
     label.textContent = storm > 0.6 ? '⛈ Storm' : storm > 0.3 ? '🌧 Squally' : storm > 0.12 ? '⛅ Overcast' : '☀ Fair';
   }

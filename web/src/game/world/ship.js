@@ -441,7 +441,9 @@ export function createShip() {
   // --- animation ---
   let furl = 1;
   function setSails(d) { furl = Math.max(0, Math.min(1, d)); }
-  function update(t) {
+  // wind 0..1 drives how hard the canvas + banner whip
+  function update(t, wind = 0) {
+    const amp = 1 + wind * 2.6, sp = 1 + wind * 1.4;
     for (const s of sails) {
       s.scale.y = furl;
       s.visible = furl > 0.02;
@@ -453,16 +455,16 @@ export function createShip() {
       for (let i = 0; i < pos.count; i++) {
         const bx = base[i * 3], by = base[i * 3 + 1], bz = base[i * 3 + 2];
         const u = bx / w + 0.5;
-        const ripple = Math.sin(u * 5.0 + t * 2.4) * 0.16 + Math.sin(by * 0.7 + t * 1.6) * 0.1;
+        const ripple = (Math.sin(u * 5.0 + t * 2.4 * sp) * 0.16 + Math.sin(by * 0.7 + t * 1.6 * sp) * 0.1) * amp;
         pos.setZ(i, bz + ripple * furl);
       }
       pos.needsUpdate = true;
     }
-    // banner ripple
+    // banner ripple — snaps and cracks harder in a blow
     const fp = flag.geometry.attributes.position;
     for (let i = 0; i < fp.count; i++) {
       const u = (fp.getX(i) + 1.2) / 2.4;
-      fp.setZ(i, Math.sin(u * 6 + t * 4) * 0.25 * u);
+      fp.setZ(i, Math.sin(u * 6 + t * (4 + wind * 5)) * 0.25 * (1 + wind * 1.8) * u);
     }
     fp.needsUpdate = true;
   }
