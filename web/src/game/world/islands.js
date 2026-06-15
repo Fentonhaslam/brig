@@ -17,6 +17,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonMaterial, withOutline } from '../core/toon.js';
+import { woodGrain, stone, mottle } from '../core/textures.js';
 import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
 
 // per-colour bucket builder -> one merged mesh per material
@@ -37,7 +38,7 @@ function makeBuilder() {
         // non-indexed before merging.
         const merged = mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g)), false);
         merged.computeVertexNormals();
-        const mesh = new Mesh(merged, toonMaterial(hex));
+        const mesh = new Mesh(merged, toonMaterial(hex, texFor(hex)));
         if (outline.includes(hex)) withOutline(mesh, 0.14);
         parent.add(mesh);
       }
@@ -51,6 +52,23 @@ const C = {
   wood: 0x6a4a2c, stone: 0xb9ad8c, wall: 0xcabf9e, roof: 0x8a4a2e,
   red: 0x9c3528, cream: 0xe8dcc0,
 };
+
+// detail map per palette colour — stonework on masonry, grain on timber, a
+// soft mottle on sand/grass (fresh texture per material so repeats are its own)
+function texFor(hex) {
+  switch (hex) {
+    case C.stone: return { map: stone(3, 3) };
+    case C.wall: return { map: stone(2, 2) };
+    case C.rock: return { map: stone(3, 4) };
+    case C.wood: return { map: woodGrain(2, 3) };
+    case C.roof: return { map: woodGrain(2, 2) };
+    case C.trunk: return { map: woodGrain(1, 3) };
+    case C.sand: return { map: mottle(6, 6) };
+    case C.grass: return { map: mottle(6, 6) };
+    case C.leaf: return { map: mottle(2, 2) };
+    default: return {};
+  }
+}
 
 const BOW_GAP = HULL_HALF_LEN + 6;                   // quay sits clear of the (scaled) bow
 const YLIFT = DECK_TOP - 2.4;                        // raise the quay to the scaled deck height
