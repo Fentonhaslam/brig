@@ -202,6 +202,14 @@ hint.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-
   + 'padding:8px 16px;border-radius:20px;letter-spacing:.3px;pointer-events:none;backdrop-filter:blur(3px)';
 document.body.appendChild(hint);
 
+// helm readout (compass heading + sail %) — shown only at the wheel
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const helmHud = document.createElement('div');
+helmHud.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:55;display:none;'
+  + 'font:600 13px system-ui;color:#f3e8cf;background:rgba(10,30,45,.55);backdrop-filter:blur(3px);'
+  + 'padding:8px 16px;border-radius:12px;text-align:center;min-width:190px;letter-spacing:.4px;pointer-events:none';
+document.body.appendChild(helmHud);
+
 // branching conversations with the crew
 const dialogue = createDialogue();
 
@@ -338,18 +346,26 @@ function updateHelm(dt) {
     }
   }
   nav.speed = MathUtils.clamp(nav.speed + ax.z * dt * 0.5, 0, 1);
-  nav.heading += -ax.x * dt * 0.7;
-  ship.setSails(nav.speed > 0.02 ? 1 : 0.15);
+  nav.heading += -ax.x * dt * 0.7;                          // steering sets a target heading…
+  shipYaw = MathUtils.damp(shipYaw, nav.heading, 2.4, dt);  // …the hull eases onto it (no snap)
+  ship.setSails(0.18 + 0.82 * nav.speed);                   // canvas fills with way
+  ship.wheel.rotation.y += -ax.x * dt * 2.2;                // spin the wheel as you steer
 
-  if (nav.speed > 0.001) {
-    shipYaw = nav.heading;
-    shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * dt;
-    shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * dt;
-    syncWorld();
-  }
+  shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * dt;
+  shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * dt;
+  syncWorld();
+
   // camera sits behind the ship looking forward over the bow
   camTarget.lerp(new Vector3(0, ship.deckY + 2.2, 1), 0.15);
-  hint.textContent = `⛵ Helm — W/S sail (${Math.round(nav.speed * 100)}%) · A/D steer · E to step away`;
+  hint.textContent = '⛵ Helm — W/S sail · A/D steer · E to step away';
+
+  // compass + speed readout
+  const deg = (((shipYaw * 180) / Math.PI) % 360 + 360) % 360;
+  const card = COMPASS[Math.round(deg / 45) % 8];
+  const spd = Math.round(nav.speed * 100);
+  helmHud.innerHTML = `<div>🧭 ${card} · ${Math.round(deg)}°&nbsp;&nbsp;·&nbsp;&nbsp;⛵ ${spd}%</div>`
+    + `<div style="margin-top:6px;height:6px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden">`
+    + `<div style="height:100%;width:${spd}%;background:linear-gradient(90deg,#c9923a,#f0d070);transition:width .15s"></div></div>`;
 }
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
@@ -386,7 +402,8 @@ function frame(now) {
   const sd = dayNight.update(dt);
   water.update(t, sd);
   ship.update(t);
-  ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.25 * (mode === 'helm' ? 1 : 0.2);
+  if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
+  helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t);
   peers.update(dt);
 
