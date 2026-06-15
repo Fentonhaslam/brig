@@ -20,6 +20,7 @@ import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
 import { createWeather } from './world/weather.js';
+import { createAmbiance } from './world/ambiance.js';
 import { createMinimap } from './ui/minimap.js';
 import { createDialogue } from './ui/dialogue.js';
 import { getIdentity } from './player/identity.js';
@@ -145,6 +146,8 @@ createAudio('/theme.mp3', 0.4);
 const dayNight = createDayNight({ renderer, sun, hemi, sky, water, scene, post, lantern });
 // weather — storms that grey the sky, whip up the sea, rain + lightning
 const weather = createWeather({ scene, water, sky, camera });
+// fair-weather ambiance — gulls wheeling overhead + a soft sun/moon disc
+const ambiance = createAmbiance(scene);
 
 // voyage minimap — your position on the crossing relative to both ports
 const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z, yaw: shipYaw }));
@@ -497,6 +500,7 @@ function frame(now) {
   ship.update(t, weather.storm);        // sails + banner whip with the wind
   orbit.setStorm(weather.storm);        // the view rocks in a swell
   spray.update(dt, weather.storm, nav.speed); // foam off the bow
+  ambiance.update(dt, t, weather.storm, dayNight.dayAmount, dayNight.sunDir, camera.position);
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
