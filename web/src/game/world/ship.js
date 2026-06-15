@@ -32,6 +32,9 @@ export const SHIP_SCALE = 1.4;
 export const DECK_TOP = DECK_Y * SHIP_SCALE;            // walkable deck height (scaled)
 export const HULL_HALF_LEN = (SHIP_LENGTH / 2) * SHIP_SCALE; // bow/stern reach (scaled)
 
+const HATCH_HX = 1.7, HATCH_HZ = 2.6;   // open hatch half-extents (deck-local)
+const BELOW_TOP = DECK_Y - 2.3;         // the hold floor sits this far under the deck
+
 // --- toon palette ---
 const MAT = {
   hull: toonMaterial(0x5a3a20),   // dark oiled wood
@@ -131,11 +134,11 @@ export function createShip() {
     B.box(MAT.red, SHIP_BEAM + 0.06, 0.35, SHIP_LENGTH * 0.62, 0, DECK_Y - 0.55, 0);
   }
 
-  // --- MAIN DECK (a faceted plank surface set just below the rail) ---
+  // --- MAIN DECK (a faceted plank surface set just below the rail), with an
+  // OPEN HATCH amidships cut out of the geometry so you can climb below ---
   {
-    const deck = new PlaneGeometry(SHIP_BEAM * 0.86, SHIP_LENGTH * 0.92, 4, 12);
+    const deck = new PlaneGeometry(SHIP_BEAM * 0.86, SHIP_LENGTH * 0.92, 6, 18);
     deck.rotateX(-Math.PI / 2);
-    // taper the deck to follow the hull
     const p = deck.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const z = p.getZ(i);
@@ -143,8 +146,68 @@ export function createShip() {
       p.setX(i, p.getX(i) * (widthAt(z01) / (SHIP_BEAM / 2)) * 0.92);
     }
     deck.translate(0, DECK_Y, 0);
+    // drop the faces over the hatch (the hold opening)
+    const idx = deck.index.array, kept = [];
+    for (let i = 0; i < idx.length; i += 3) {
+      let cx = 0, cz = 0;
+      for (let k = 0; k < 3; k++) { cx += p.getX(idx[i + k]); cz += p.getZ(idx[i + k]); }
+      cx /= 3; cz /= 3;
+      if (Math.abs(cx) < HATCH_HX && Math.abs(cz) < HATCH_HZ) continue;
+      kept.push(idx[i], idx[i + 1], idx[i + 2]);
+    }
+    deck.setIndex(kept);
     deck.computeVertexNormals();
     B.raw(MAT.deck, deck);
+  }
+
+  // --- BELOW-DECK: a lit gun deck / hold reached by the hatch stair ---
+  const belowColliders = [];
+  {
+    const wd = SHIP_BEAM * 0.4, ld = SHIP_LENGTH * 0.46;
+    // floor + a walkable collider for it
+    B.box(MAT.deck, wd * 1.84, 0.4, ld * 1.56, 0, BELOW_TOP - 0.2, 0);
+    // a deep, solid floor BLOCK (top at BELOW_TOP) — nothing can fall past it
+    belowColliders.push({ hx: wd * 0.95, hy: 4, hz: ld * 0.82, x: 0, y: BELOW_TOP - 4, z: 0 });
+    // hull-interior side walls (headroom up to the deck) + colliders
+    const wallY = (BELOW_TOP + DECK_Y) / 2, wallHy = (DECK_Y - BELOW_TOP) / 2 + 0.2;
+    for (const sx of [-1, 1]) {
+      B.box(MAT.hull, 0.3, DECK_Y - BELOW_TOP, ld * 1.5, sx * (wd - 0.05), wallY, 0);
+      belowColliders.push({ hx: 0.25, hy: wallHy, hz: ld * 0.78, x: sx * (wd + 0.05), y: wallY, z: 0 });
+    }
+    // fore + aft end caps, so you can't walk off the ends of the hold floor
+    for (const sz2 of [-1, 1]) {
+      B.box(MAT.hull, wd * 1.9, DECK_Y - BELOW_TOP, 0.3, 0, wallY, sz2 * (ld * 0.78));
+      belowColliders.push({ hx: wd * 0.95, hy: wallHy, hz: 0.3, x: 0, y: wallY, z: sz2 * (ld * 0.78) });
+    }
+    // overhead deck beams
+    for (const bz of [-7, -2, 4, 9]) B.box(MAT.trim, wd * 1.7, 0.28, 0.4, 0, DECK_Y - 0.35, bz);
+    // gun-deck cannons on carriages + powder barrels
+    for (const side of [-1, 1]) for (const cz of [-7, -1, 5]) {
+      B.cyl(MAT.iron, 0.18, 0.24, 1.5, side * (wd - 0.3), BELOW_TOP + 0.75, cz, 8, [Math.PI / 2, 0, 0]);
+      B.box(MAT.trim, 0.8, 0.5, 1.0, side * (wd - 0.55), BELOW_TOP + 0.45, cz);
+    }
+    for (const [bx, bz] of [[-1.3, -9], [1.3, -9], [0, 9.5], [-1.5, 2.5], [1.6, -4]]) {
+      B.cyl(MAT.cask, 0.45, 0.45, 1.0, bx, BELOW_TOP + 0.6, bz, 8);
+    }
+    // a hanging lantern so the hold glows (a point light is added in main too)
+    B.box(MAT.gold, 0.34, 0.16, 0.34, 0, DECK_Y - 0.55, 1);
+    B.box(MAT.glass, 0.26, 0.42, 0.26, 0, DECK_Y - 0.92, 1);
+  }
+
+  // --- HATCH COAMING + a solid RAMP down into the hold ---
+  {
+    // coaming on three sides; the FORE side (+z) is left open as the way down
+    B.box(MAT.trim, HATCH_HX * 2 + 0.5, 0.32, 0.26, 0, DECK_Y + 0.16, -HATCH_HZ);
+    B.box(MAT.trim, 0.26, 0.32, HATCH_HZ * 2, HATCH_HX, DECK_Y + 0.16, 0);
+    B.box(MAT.trim, 0.26, 0.32, HATCH_HZ * 2, -HATCH_HX, DECK_Y + 0.16, 0);
+    // one solid ramp from the hatch fore edge (deck) down to the hold floor —
+    // no gaps or thin treads to slip past
+    const z0 = HATCH_HZ, z1 = -1.6;                  // top (deck edge) -> bottom
+    const cz = (z0 + z1) / 2, cy = (DECK_Y + BELOW_TOP) / 2;
+    const ang = Math.atan2(DECK_Y - BELOW_TOP, z0 - z1);
+    const half = Math.hypot(z0 - z1, DECK_Y - BELOW_TOP) / 2;
+    B.box(MAT.trim, 2.8, 0.4, half * 2, 0, cy, cz, [-ang, 0, 0]);
+    belowColliders.push({ hx: 1.4, hy: 0.2, hz: half, x: 0, y: cy, z: cz, rot: [-ang, 0, 0] });
   }
 
   // --- BULWARKS (rail walls down each side, following the taper) ---
@@ -410,9 +473,14 @@ export function createShip() {
   // --- physics colliders (static cuboids; ship sits at the world origin so
   // local == world). Deck floor + raised castles + bulwark walls that keep the
   // player aboard. {hx,hy,hz,x,y,z}
+  const dfHz = (SHIP_LENGTH * 0.46 - HATCH_HZ) / 2, dfZ = (SHIP_LENGTH * 0.46 + HATCH_HZ) / 2;
+  const dfHx = (SHIP_BEAM * 0.4 - HATCH_HX) / 2, dfX = (SHIP_BEAM * 0.4 + HATCH_HX) / 2;
   const colliders = [
-    // main deck floor (top surface at DECK_Y)
-    { hx: SHIP_BEAM * 0.4, hy: 0.3, hz: SHIP_LENGTH * 0.46, x: 0, y: DECK_Y - 0.3, z: 0 },
+    // main deck floor — a frame around the open hatch (top surface at DECK_Y)
+    { hx: SHIP_BEAM * 0.4, hy: 0.3, hz: dfHz, x: 0, y: DECK_Y - 0.3, z: dfZ },   // fore of hatch
+    { hx: SHIP_BEAM * 0.4, hy: 0.3, hz: dfHz, x: 0, y: DECK_Y - 0.3, z: -dfZ },  // aft of hatch
+    { hx: dfHx, hy: 0.3, hz: HATCH_HZ, x: dfX, y: DECK_Y - 0.3, z: 0 },          // starboard strip
+    { hx: dfHx, hy: 0.3, hz: HATCH_HZ, x: -dfX, y: DECK_Y - 0.3, z: 0 },         // port strip
     // forecastle deck (raised, fwd)
     { hx: SHIP_BEAM * 0.34, hy: 0.2, hz: 2.5, x: 0, y: DECK_Y + 0.8, z: SHIP_LENGTH * 0.34 },
     // quarterdeck (raised, aft)
@@ -423,14 +491,15 @@ export function createShip() {
     { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: SHIP_LENGTH * 0.46 },
     { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: -SHIP_LENGTH * 0.46 },
   ];
-  colliders.push(...stepColliders); // the deck stairs
+  colliders.push(...stepColliders);   // the deck stairs
+  colliders.push(...belowColliders);  // the hold floor, walls and hatch stair
 
   // scale the whole vessel up; pre-scale everything main.js consumes so the
   // physics colliders, helm and lantern line up with the enlarged visuals
   const S = SHIP_SCALE;
   root.scale.setScalar(S);
   const scaled = colliders.map((c) => ({
-    hx: c.hx * S, hy: c.hy * S, hz: c.hz * S, x: c.x * S, y: c.y * S, z: c.z * S,
+    hx: c.hx * S, hy: c.hy * S, hz: c.hz * S, x: c.x * S, y: c.y * S, z: c.z * S, rot: c.rot,
   }));
   return {
     root, deckY: DECK_Y * S, length: SHIP_LENGTH * S, beam: SHIP_BEAM * S,

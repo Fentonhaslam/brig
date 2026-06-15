@@ -118,6 +118,11 @@ scene.add(lantern);
 const torch = new PointLight(0xffd6a0, 0, 11, 1.6);
 scene.add(torch);
 
+// a warm lamp in the hold, so the below-deck is lit even though it's enclosed
+const holdLamp = new PointLight(0xffcf8a, 7, 16, 1.7);
+holdLamp.position.set(0, ship.deckY - 1.4, 1.4);
+scene.add(holdLamp);
+
 // --- orbital camera ---
 const camTarget = new Vector3(0, ship.deckY + 1.4, 2);
 const orbit = createOrbitCam(camera, canvas, camTarget);
@@ -140,7 +145,7 @@ const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z,
 
 // --- physics + player ---
 const physics = await initPhysics();
-const shipBodies = ship.colliders.map((c) => physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z));
+const shipBodies = ship.colliders.map((c) => physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z, c.rot));
 // the bow bulwark — removed while berthed so you can step onto the gangway
 const bowIdx = ship.colliders.findIndex((c) => c.hz < 0.5 && c.z > 5);
 let bowBody = shipBodies[bowIdx];
@@ -334,8 +339,10 @@ function updateWalk(dt) {
   player.update(dt);
 
   // overboard -> swim at the surface; climb aboard near the ship, or be hauled
-  // back in after a while if you can't make it
-  if (!player.swimming && player.feetY < -1.0) { player.setSwim(true); swimT = 0; }
+  // back in after a while. Only counts if you're OUTSIDE the hull footprint —
+  // otherwise descending into the (near-waterline) hold would read as overboard.
+  const overHull = Math.abs(player.position.x) < ship.beam * 0.55 && Math.abs(player.position.z) < ship.length * 0.52;
+  if (!player.swimming && player.feetY < -1.2 && !overHull) { player.setSwim(true); swimT = 0; }
   if (player.swimming) {
     swimT += dt;
     if (player.feetY > 0.6) { player.setSwim(false); swimT = 0; }                 // climbed out
