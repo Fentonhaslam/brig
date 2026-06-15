@@ -106,6 +106,7 @@ syncWorld();
 // --- the ship, riding at the origin ---
 const ship = createShip();
 scene.add(ship.root);
+water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
 
 // warm stern lantern — a local glow the bloom pass picks up at dusk
 const lantern = new PointLight(0xffb060, 7, 16, 2.0);
@@ -416,7 +417,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; },
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit,
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
@@ -447,7 +448,7 @@ function frame(now) {
 
   physics.step(dt);
   const sd = dayNight.update(dt);
-  water.update(t, sd);
+  water.update(t, sd, null, nav.speed); // wake strengthens with sail speed
   ship.update(t);
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';

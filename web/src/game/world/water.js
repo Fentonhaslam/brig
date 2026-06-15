@@ -10,7 +10,7 @@
 //
 // It costs a fraction of the WaterMaterial RTT approach and looks intentional.
 
-import { Color, Mesh, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import { Color, Mesh, PlaneGeometry, ShaderMaterial, Vector2, Vector3 } from 'three';
 
 const vert = /* glsl */ `
   precision highp float;
@@ -59,9 +59,19 @@ const frag = /* glsl */ `
   uniform vec3 uFogColor;
   uniform float uFogNear;
   uniform float uFogFar;
+  uniform vec2 uHull;   // hull half-extents (beam/2, length/2); ship is at origin facing +z
+  uniform float uSpeed; // 0..1 sail speed, for the wake
   varying vec3 vWorldPos;
   varying vec3 vNormal;
   varying float vH;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    float a = hash(i), b = hash(i + vec2(1.0, 0.0)), c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  }
 
   void main() {
     vec3 N = normalize(vNormal);
@@ -88,6 +98,33 @@ const frag = /* glsl */ `
     float spec = step(0.96, dot(N, H));
     col += uSunColor * spec * 0.6;
 
+    // --- the sea breaking against the hull + the wake astern ---
+    // (the ship is pinned at the origin facing +z, so this is all in world XZ)
+    vec2 q = vWorldPos.xz;
+    vec3 FOAM = vec3(0.96, 0.99, 1.0);
+
+    // foam collar: a churned band hugging the hull at the waterline. e=1 is the
+    // hull edge of the beam/length ellipse; the band sits just outside it and
+    // surges with a little noise (livelier at the bow and with speed).
+    float e = length(q / uHull);
+    float collar = smoothstep(0.96, 1.08, e) * smoothstep(1.7, 1.08, e);
+    float surge = 0.55 + 0.45 * noise(q * 0.5 + uTime * 1.3);
+    float bowBias = 1.0 + 0.7 * smoothstep(0.0, 1.0, q.y / uHull.y) * uSpeed; // more spray forward when moving
+    col = mix(col, FOAM, clamp(collar * surge * bowBias * 0.9, 0.0, 1.0));
+
+    // wake: a widening, churned V trailing astern (z < 0), scrolling back and
+    // fading with distance; only when under way.
+    float bz = -q.y;                       // distance behind the stern
+    if (uSpeed > 0.01 && bz > 0.0 && bz < 95.0) {
+      float halfW = uHull.x + 0.9 + bz * 0.13;
+      float across = abs(q.x) / halfW;     // 0 centre .. 1 the diverging edge
+      float vlines = smoothstep(0.14, 0.0, abs(across - 1.0));        // the two bow-wave lines
+      float churn = noise(vec2(q.x * 0.35, (q.y + uTime * 9.0) * 0.28));
+      float core = smoothstep(1.05, 0.0, across) * (0.35 + 0.65 * churn); // turbulent centre
+      float wake = (vlines + core) * smoothstep(95.0, 4.0, bz) * uSpeed;
+      col = mix(col, FOAM, clamp(wake * 0.9, 0.0, 1.0));
+    }
+
     // self-contained linear distance fog so the sea melts into the horizon
     // (handled here rather than via scene fog to keep the material independent
     // of three's fog-uniform injection).
@@ -113,7 +150,10 @@ export function createWater(scene, size = 6000) {
       uFogColor: { value: new Color(0xf3c79a) },
       uFogNear: { value: 220 },
       uFogFar: { value: 1400 },
+      uHull: { value: new Vector2(4, 14) }, // ship beam/2, length/2 (set by main)
+      uSpeed: { value: 0 },
     },
+    transparent: false,
   });
   // Moderate tessellation: enough for the wobble to read near the camera,
   // cheap enough to stay one fast draw call. (180k tris at most.)
@@ -123,11 +163,13 @@ export function createWater(scene, size = 6000) {
   mesh.frustumCulled = false;
   scene.add(mesh);
 
-  function update(t, sunDir, sky) {
+  function update(t, sunDir, sky, speed) {
     mat.uniforms.uTime.value = t;
     if (sunDir) mat.uniforms.uSunDir.value.copy(sunDir);
     if (sky) mat.uniforms.uSky.value.set(sky);
+    if (speed != null) mat.uniforms.uSpeed.value = speed;
   }
+  function setShip(beam, length) { mat.uniforms.uHull.value.set(beam / 2, length / 2); }
 
-  return { mesh, material: mat, update };
+  return { mesh, material: mat, update, setShip };
 }
