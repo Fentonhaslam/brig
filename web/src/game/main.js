@@ -27,6 +27,7 @@ import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
 import { createAccount } from './systems/account.js';
 import { createCannons } from './systems/cannons.js';
+import { createSpray } from './systems/spray.js';
 import { createRefit } from './systems/refit.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
@@ -156,6 +157,9 @@ const bowIdx = ship.colliders.findIndex((c) => c.hz < 0.5 && c.z > 5);
 let bowBody = shipBodies[bowIdx];
 const SPAWN = new Vector3(0, ship.deckY + 1.6, 3);
 const player = createPlayer(physics, scene, SPAWN);
+
+// foam spray off the bow (scales with weather + speed)
+const spray = createSpray(scene, ship);
 
 // run out the guns (R) + ring the bell (B)
 const cannons = createCannons(scene, physics, ship);
@@ -492,6 +496,7 @@ function frame(now) {
   weather.update(dt);                   // storms layer over the time of day
   ship.update(t, weather.storm);        // sails + banner whip with the wind
   orbit.setStorm(weather.storm);        // the view rocks in a swell
+  spray.update(dt, weather.storm, nav.speed); // foam off the bow
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
