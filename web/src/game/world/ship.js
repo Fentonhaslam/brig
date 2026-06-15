@@ -233,16 +233,13 @@ export function createShip() {
   // both a visible plank and a flat collider, collected for the physics list.
   const stepColliders = [];
   function stair(topY, z, hw) {
-    B.box(MAT.trim, hw * 2, 0.4, 0.84, 0, topY - 0.2, z);
-    stepColliders.push({ hx: hw, hy: 0.2, hz: 0.42, x: 0, y: topY - 0.2, z });
+    B.box(MAT.trim, hw * 2, 0.3, 0.66, 0, topY - 0.15, z);
+    stepColliders.push({ hx: hw, hy: 0.16, hz: 0.36, x: 0, y: topY - 0.16, z });
   }
-  // up to the quarterdeck (2.4 -> 3.6), climbing aft
-  stair(DECK_Y + 0.4, -3.8, 1.6);
-  stair(DECK_Y + 0.8, -4.6, 1.6);
-  stair(DECK_Y + 1.2, -5.4, 1.6);
-  // up to the forecastle (2.4 -> 3.4), climbing forward
-  stair(DECK_Y + 0.4, 6.0, 1.4);
-  stair(DECK_Y + 0.8, 6.6, 1.4);
+  // up to the quarterdeck (2.4 -> 3.6): five shallow, realistic risers (~0.24)
+  for (let i = 1; i <= 5; i++) stair(DECK_Y + 0.24 * i, -3.7 - 0.42 * i, 1.6);
+  // up to the forecastle (2.4 -> 3.4): four shallow risers, climbing forward
+  for (let i = 1; i <= 4; i++) stair(DECK_Y + 0.25 * i, 5.55 + 0.42 * i, 1.4);
 
   // --- CAPSTAN (mid-deck) ---
   const capstanPos = new Vector3(0, DECK_Y, 4.5);
@@ -508,5 +505,9 @@ export function createShip() {
     capstanPos: capstanPos.clone().multiplyScalar(S),
     lanternPos: lanternPos.clone().multiplyScalar(S),
     colliders: scaled, setSails, update,
+    // live refit — recolour the shared merged-mesh materials
+    setSailColor: (hex) => MAT.sail.color.set(hex),
+    setBannerColor: (hex) => { MAT.red.color.set(hex); },
+    setHullColor: (hex) => MAT.hull.color.set(hex),
   };
 }

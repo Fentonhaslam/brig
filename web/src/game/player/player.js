@@ -17,9 +17,12 @@ export function createPlayer(physics, scene, spawn = new Vector3(0, 4, 0)) {
   let vy = 0;
   let facing = 0;
   let stride = 0;
+  let grounded = false;
   const desired = new Vector3();
   let moving = false;
   let swimming = false;
+
+  function jump() { if (grounded && !swimming) { vy = 8.6; grounded = false; } } // ~1.8 units up
   let swimClock = 0;
   const SWIM_CENTER = 0.25; // capsule centre at the surface → head & shoulders out
 
@@ -60,7 +63,7 @@ export function createPlayer(physics, scene, spawn = new Vector3(0, 4, 0)) {
     // gravity
     vy += -20 * dt;
     const disp = { x: desired.x * dt, y: vy * dt, z: desired.z * dt };
-    const { grounded } = char.move(disp);
+    grounded = char.move(disp).grounded;
     if (grounded && vy < 0) vy = -1; // keep glued to the deck
 
     // sync mesh (feet at capsule bottom)
@@ -83,7 +86,7 @@ export function createPlayer(physics, scene, spawn = new Vector3(0, 4, 0)) {
 
   return {
     group, char,
-    walk, update, setSwim,
+    walk, update, setSwim, jump,
     get swimming() { return swimming; },
     get position() { const p = char.translation(); return new Vector3(p.x, p.y, p.z); },
     get feetY() { return char.translation().y - FOOT; },

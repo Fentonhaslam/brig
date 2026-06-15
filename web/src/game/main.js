@@ -26,6 +26,7 @@ import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
 import { createAccount } from './systems/account.js';
 import { createCannons } from './systems/cannons.js';
+import { createRefit } from './systems/refit.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -187,11 +188,14 @@ const inventory = createInventory({ key: guestId, handle }); // cargo + coin, pe
 // the world chronicle as memory-stones in the keep courtyard
 const lore = createLore({ group: built.harbours[0].group, anchor: built.harbours[0].courtyard, handle, key: guestId });
 const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
+// refit — name + recolour the ship (applied live + persisted)
+const refit = createRefit({ ship, key: guestId });
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
   inventory.setAccount(userId, h);  // cargo follows the account
   lore.setSession(session, h);      // inscriptions become permanent + world-shared
+  refit.setKey('acct:' + userId);   // ship name/colours follow the account
 });
 const world = joinWorld({ handle, userId: guestId });
 world.onPeers((p) => peers.sync(p));
@@ -262,11 +266,15 @@ function frameTalk(npc) {
   orbit.setRadius(CAM.talk);
 }
 
-// Space clambers back aboard when treading water alongside the hull
+// Space jumps on deck (to get up onto things), or clambers back aboard when
+// you're treading water alongside the hull
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && player.swimming && nearShipXZ()) {
-    player.setSwim(false); swimT = 0;
-    player.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
+  if (e.code !== 'Space') return;
+  e.preventDefault();
+  if (player.swimming) {
+    if (nearShipXZ()) { player.setSwim(false); swimT = 0; player.teleport(SPAWN.x, SPAWN.y, SPAWN.z); }
+  } else if (mode === 'walk' && !dialogue.isOpen && !inscribe.isOpen) {
+    player.jump();
   }
 });
 
@@ -386,7 +394,7 @@ function updateWalk(dt) {
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
-  else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'WASD / click to move · Shift run · R cannons · B bell';
+  else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'WASD/click move · Space jump · Shift run · R guns · B bell';
 }
 
 // is the swimmer alongside the hull (close enough to clamber back aboard)?
@@ -435,7 +443,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons,
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit,
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
