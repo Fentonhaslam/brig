@@ -17,7 +17,9 @@ import {
   BoxGeometry, CylinderGeometry, PlaneGeometry, TorusGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toonMaterial, withOutline } from '../core/toon.js';
+import { woodGrain, weave } from '../core/textures.js';
 
 export const SHIP_LENGTH = 28;
 export const SHIP_BEAM = 8;
@@ -37,15 +39,15 @@ const BELOW_TOP = DECK_Y - 2.3;         // the hold floor sits this far under th
 
 // --- toon palette ---
 const MAT = {
-  hull: toonMaterial(0x5a3a20),   // dark oiled wood
-  deck: toonMaterial(0xb07c3e),   // sun-bleached planking
-  trim: toonMaterial(0x7a4d28),   // rails / beams
+  hull: toonMaterial(0x5a3a20, { map: woodGrain(2, 5) }),   // dark oiled wood, planked
+  deck: toonMaterial(0xb07c3e, { map: woodGrain(3, 8) }),   // sun-bleached planking
+  trim: toonMaterial(0x7a4d28, { map: woodGrain(2, 2) }),   // rails / beams
   iron: toonMaterial(0x2b2b30),   // cannons, fittings
   gold: toonMaterial(0xb98a2e),   // gilding (weathered brass — less neon)
   red:  toonMaterial(0x9c3528),   // banners / trim stripe (deeper, more serious)
-  sail: toonMaterial(0xddcfae, { side: DoubleSide }), // weathered canvas
+  sail: toonMaterial(0xddcfae, { side: DoubleSide, map: weave(2, 2) }), // woven canvas
   rope: toonMaterial(0x6a5a3a),   // rigging / cordage
-  cask: toonMaterial(0x6f4a28),   // barrels / crates
+  cask: toonMaterial(0x6f4a28, { map: woodGrain(2, 2) }),   // barrels / crates
   // lit glass: emissive so the post bloom blooms it into a warm lantern glow
   glass: toonMaterial(0xf6cf7a, { emissive: 0xffb968, emissiveIntensity: 1.4 }),
   window: toonMaterial(0xffca7a, { emissive: 0xffb060, emissiveIntensity: 1.0 }), // stern gallery
@@ -75,6 +77,13 @@ function makeBuilder() {
       g.translate(x, y, z);
       add(mat, g);
     },
+    // a rounded box (softened edges) — for crates, chests and other deck clutter
+    rbox(mat, w, h, d, x, y, z, r = 0.1, rot) {
+      const g = new RoundedBoxGeometry(w, h, d, 2, r);
+      if (rot) { g.rotateX(rot[0] || 0); g.rotateY(rot[1] || 0); g.rotateZ(rot[2] || 0); }
+      g.translate(x, y, z);
+      add(mat, g);
+    },
     cyl(mat, rt, rb, h, x, y, z, seg = 7, rot) {
       const g = new CylinderGeometry(rt, rb, h, seg);
       if (rot) { g.rotateX(rot[0] || 0); g.rotateY(rot[1] || 0); g.rotateZ(rot[2] || 0); }
@@ -94,7 +103,9 @@ function makeBuilder() {
     raw(mat, g) { add(mat, g); },
     commit(parent, outlineMats = []) {
       for (const [mat, geos] of buckets) {
-        const merged = mergeGeometries(geos, false);
+        // RoundedBoxGeometry is non-indexed while Box/Cylinder are indexed;
+        // mergeGeometries needs all-or-none, so drop everything to non-indexed
+        const merged = mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g)), false);
         merged.computeVertexNormals();
         const mesh = new Mesh(merged, mat);
         if (outlineMats.includes(mat)) withOutline(mesh, 0.07);
@@ -314,7 +325,7 @@ export function createShip() {
     B.cyl(MAT.iron, 0.44, 0.44, 0.1, x, DECK_Y + 0.75, z, 8);
   }
   for (const [x, z, s] of [[2.2, 4.0, 0.8], [2.6, 4.4, 0.6], [1.9, 4.5, 0.7]]) {
-    B.box(MAT.cask, s, s, s, x, DECK_Y + s / 2, z);
+    B.rbox(MAT.cask, s, s, s, x, DECK_Y + s / 2, z, 0.08);
   }
   for (const [x, z] of [[-3.0, 3.0], [3.0, 1.0], [-3.0, -3.5]]) {
     B.cyl(MAT.rope, 0.32, 0.36, 0.18, x, DECK_Y + 0.09, z, 10); // coil of line
@@ -372,7 +383,7 @@ export function createShip() {
 
   // --- a little more cargo lashed amidships ---
   for (const [x, z, s] of [[-2.0, -3.0, 0.9], [2.4, -2.2, 0.7], [-2.6, 6.4, 0.8]]) {
-    B.box(MAT.cask, s, s, s, x, DECK_Y + s / 2, z);
+    B.rbox(MAT.cask, s, s, s, x, DECK_Y + s / 2, z, 0.08);
   }
   for (const [x, z] of [[2.6, -4.5], [-3.0, 5.5]]) B.cyl(MAT.rope, 0.3, 0.34, 0.18, x, DECK_Y + 0.09, z, 10);
 
