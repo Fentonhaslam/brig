@@ -8,6 +8,66 @@
 import { Group, Vector3 } from 'three';
 import { makeAvatar, animateFigure } from '../player/avatar.js';
 
+// wrap a list of plain lines into a single-path dialogue graph
+function linearTree(lines) {
+  const tree = {};
+  lines.forEach((ln, i) => {
+    const last = i === lines.length - 1;
+    tree['n' + i] = { text: ln, choices: [{ label: last ? 'Farewell.' : 'Go on…', to: last ? null : 'n' + (i + 1) }] };
+  });
+  return { tree, start: 'n0' };
+}
+
+// hand-authored branching conversations, keyed by name
+const TREES = {
+  'Maestre Alvarado': {
+    start: 'start',
+    tree: {
+      start: { text: 'We make for Hispaniola. The ship answers well and the company is sound.', choices: [
+        { label: 'How long until we make landfall?', to: 'eta' },
+        { label: 'What do we carry?', to: 'cargo' },
+        { label: 'Steady on, Maestre.', to: null },
+      ] },
+      eta: { text: 'Hold this heading and we raise Santo Domingo by the forenoon watch — wind willing.', choices: [
+        { label: 'And if the wind fails?', to: 'wind' },
+        { label: 'Understood.', to: null },
+      ] },
+      wind: { text: 'Then we whistle for it and pray. The Ocean Sea keeps its own counsel.', choices: [{ label: 'Aye.', to: null }] },
+      cargo: { text: 'Oil, wine, cloth and iron for the colony — and hopes enough to founder her.', choices: [
+        { label: 'Hopes weigh nothing.', to: 'hopes' },
+        { label: 'A fair manifest.', to: null },
+      ] },
+      hopes: { text: 'Spoken like a man who has never had to carry them. Mind the helm, sailor.', choices: [{ label: '…', to: null }] },
+    },
+  },
+  'Don Ferrante': {
+    start: 'start',
+    tree: {
+      start: { text: 'Steel and faith carried us across the Ocean Sea. They will carry us ashore.', choices: [
+        { label: 'You seek gold?', to: 'gold' },
+        { label: 'You seek souls?', to: 'souls' },
+        { label: 'God speed you.', to: null },
+      ] },
+      gold: { text: 'I seek what every man seeks — a name that outlasts him. Gold is merely how the world keeps score.', choices: [{ label: 'A costly score.', to: 'cost' }, { label: 'Honest enough.', to: null }] },
+      souls: { text: 'The friars will see to souls. I see to the ground they stand on.', choices: [{ label: 'And those already standing on it?', to: 'cost' }, { label: 'I see.', to: null }] },
+      cost: { text: 'Every shore is bought with something. Pray it is not your own conscience, friend.', choices: [{ label: '…', to: null }] },
+    },
+  },
+  'Don Rensa': {
+    start: 'start',
+    tree: {
+      start: { text: 'Forty days without solid ground. My legs have forgotten the trick of it.', choices: [
+        { label: 'Why did you sail at all?', to: 'why' },
+        { label: 'It comes back quickly.', to: 'back' },
+        { label: 'Rest easy.', to: null },
+      ] },
+      why: { text: 'A second son inherits a sword and little else. The Indies are where such men go to become first sons.', choices: [{ label: 'Or to be forgotten.', to: 'forgot' }, { label: 'Bold.', to: null }] },
+      forgot: { text: 'Better forgotten over there than ignored at home. At least the sea remembers who it drowns.', choices: [{ label: '…', to: null }] },
+      back: { text: 'So they tell me. So they told the men we buried at sea, too.', choices: [{ label: 'Steady on.', to: null }] },
+    },
+  },
+};
+
 export function createCrew(scene, ship) {
   const group = new Group();
   scene.add(group);
@@ -42,8 +102,10 @@ export function createCrew(scene, ship) {
     node.position.set(s.p[0], s.p[1], s.p[2]);
     node.rotation.y = s.ry;
     group.add(node);
+    const conv = TREES[s.name] || linearTree(s.lines); // branching where authored, else a single beat
     return {
-      name: s.name, title: s.title, role: s.role, lines: s.lines,
+      name: s.name, title: s.title, role: s.role,
+      tree: conv.tree, start: conv.start,
       node, pos: new Vector3(s.p[0], s.p[1], s.p[2]), phase: i * 1.7, baseY: s.p[1],
     };
   });

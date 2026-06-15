@@ -20,6 +20,7 @@ import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
 import { createMinimap } from './ui/minimap.js';
+import { createDialogue } from './ui/dialogue.js';
 import { getIdentity } from './player/identity.js';
 import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
@@ -194,31 +195,22 @@ hint.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-
   + 'padding:8px 16px;border-radius:20px;letter-spacing:.3px;pointer-events:none;backdrop-filter:blur(3px)';
 document.body.appendChild(hint);
 
-// dialogue box (talk to the crew)
-const dlg = document.createElement('div');
-dlg.style.cssText = 'position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:60;'
-  + 'max-width:520px;display:none;font:15px/1.5 Georgia,serif;color:#f3e8cf;'
-  + 'background:linear-gradient(180deg,rgba(28,22,14,.93),rgba(18,14,9,.95));'
-  + 'padding:14px 20px;border:1px solid rgba(180,150,90,.5);border-radius:8px;'
-  + 'box-shadow:0 10px 30px rgba(0,0,0,.5)';
-document.body.appendChild(dlg);
-let talking = null;
-function showDialogue(npc) {
-  talking = npc;
-  dlg.innerHTML = `<div style="color:#d8b46a;font:600 13px system-ui;letter-spacing:.5px;margin-bottom:6px">`
-    + `${npc.name.toUpperCase()} · ${npc.title}</div><div>${npc.lines[0]}</div>`
-    + `<div style="color:#9a8a66;font:11px system-ui;margin-top:8px">F to close</div>`;
-  dlg.style.display = 'block';
-}
-function hideDialogue() { talking = null; dlg.style.display = 'none'; }
+// branching conversations with the crew
+const dialogue = createDialogue();
 
 let nearNpc = null; // crew member in range this frame
 window.addEventListener('keydown', (e) => {
+  // while a conversation is open, the keys drive the choices
+  if (dialogue.isOpen) {
+    if (e.key === 'Escape') dialogue.close();
+    else if (e.code === 'KeyF') dialogue.choose(0);
+    else { const n = parseInt(e.key, 10); if (n >= 1 && n <= 9) dialogue.choose(n - 1); }
+    return;
+  }
   if (e.code !== 'KeyF') return;
   if (inscribe.isOpen) { inscribe.hide(); return; }
   if (berthed && mode === 'walk' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
-  if (talking) hideDialogue();
-  else if (nearNpc && mode === 'walk') showDialogue(nearNpc);
+  if (nearNpc && mode === 'walk') dialogue.open(nearNpc);
 });
 
 // Space clambers back aboard when treading water alongside the hull
@@ -277,7 +269,7 @@ function castOff() {
 }
 
 function updateWalk(dt) {
-  const ax = input.moveAxis();
+  const ax = dialogue.isOpen ? { x: 0, z: 0 } : input.moveAxis(); // hold still while talking
   if (ax.x || ax.z) {
     moveTarget = null;
     camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
@@ -304,11 +296,12 @@ function updateWalk(dt) {
 
   camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
 
-  // crew proximity / interaction
+  // crew proximity / interaction (walk away to end a chat)
   nearNpc = crew.nearest(player.position, 2.6);
-  if (talking && (!nearNpc || nearNpc !== talking)) hideDialogue();
+  if (dialogue.isOpen && !nearNpc) dialogue.close();
 
-  if (player.swimming) {
+  if (dialogue.isOpen) { /* hint stays as the conversation */ }
+  else if (player.swimming) {
     hint.textContent = nearShipXZ() ? 'Tread water — press Space to climb aboard'
       : 'Overboard! Swim back to the ship';
   } else if (berthed && player.position.z > 15) {
@@ -358,6 +351,7 @@ window.brig = {
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
   player, ship, places: built.places, inv: inventory, lore, inscribe,
+  dialogue, crew,
   berth, castOff, get berthed() { return berthed; },
   // jump to just off Santo Domingo, ready to auto-berth next frame
   approachHarbour() { this.setShip(harbour.worldPoint.x, harbour.worldPoint.z - 40, 0); },
