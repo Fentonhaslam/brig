@@ -6,18 +6,18 @@
 
 import {
   Scene, PerspectiveCamera, Color, Fog, Vector3, Group, Object3D, MathUtils,
-  HemisphereLight, DirectionalLight,
-  Mesh, ConeGeometry, CylinderGeometry, IcosahedronGeometry,
+  HemisphereLight, DirectionalLight, PointLight,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import { createRenderer } from './core/renderer.js';
+import { createPost } from './core/post.js';
+import { createAudio } from './core/audio.js';
 import { createStats } from './core/stats.js';
 import { createOrbitCam } from './camera/orbit.js';
 import { createSky } from './world/sky.js';
 import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
-import { toonMaterial, withOutline } from './core/toon.js';
+import { buildWorld } from './world/islands.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -48,79 +48,40 @@ const hemi = new HemisphereLight(0xdfe6d2, 0x55503a, 0.7);
 scene.add(hemi);
 const sun = new DirectionalLight(0xffe4b0, 1.9);
 sun.position.copy(sunDir).multiplyScalar(200);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 120;
+sun.shadow.camera.far = 330;
+{
+  const S = 28; // ortho half-extent — frames the ship + a little water around it
+  sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
+  sun.shadow.camera.top = S; sun.shadow.camera.bottom = -S;
+}
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
 scene.add(sun);
+scene.add(sun.target); // target stays at the origin, where the ship rides
 
 const sky = createSky(scene);
 sky.setSun(sunDir, 0xffe9c0, 0xf0dcae, 0x6f9ec2);
 const water = createWater(scene);
-// moodier, deeper sea (less neon turquoise) for the more serious tone
-water.material.uniforms.uDeep.value.set(0x123f4a);
-water.material.uniforms.uShallow.value.set(0x2d8a82);
-water.material.uniforms.uSky.value.set(0xbfd8cf);
+// a believable toon sea: deep blue troughs, teal-blue crests (not green)
+water.material.uniforms.uDeep.value.set(0x0d3a55);
+water.material.uniforms.uShallow.value.set(0x227d92);
+water.material.uniforms.uSky.value.set(0xb2d2da);
 water.update(0, sunDir);
 water.material.uniforms.uFogColor.value.set(FOG);
 water.material.uniforms.uFogFar.value = 1800;
 
-// --- a low-poly island, MERGED into one draw call per material -------------
-// Demonstrates the geometry strategy for the whole rebuild: build modular
-// primitives, merge by material, end up with a handful of draw calls.
-function buildIsland() {
-  const sandGeos = [];
-  const rockGeos = [];
-  const leafGeos = [];
-  const trunkGeos = [];
-
-  // beach mound
-  const base = new IcosahedronGeometry(60, 1);
-  base.scale(1, 0.18, 1); base.translate(0, 1, 0);
-  sandGeos.push(base);
-
-  // a couple of hills
-  for (const [x, z, r, h] of [[-12, 8, 26, 22], [18, -10, 20, 30]]) {
-    const hill = new ConeGeometry(r, h, 6, 1);
-    hill.translate(x, h / 2, z);
-    rockGeos.push(hill);
-  }
-
-  // palm trees scattered around
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const x = Math.cos(a) * 42, z = Math.sin(a) * 42;
-    const trunk = new CylinderGeometry(0.6, 0.9, 9, 5);
-    trunk.translate(x, 5, z);
-    trunkGeos.push(trunk);
-    const fronds = new ConeGeometry(4.5, 4, 6, 1);
-    fronds.translate(x, 11, z);
-    leafGeos.push(fronds);
-  }
-
-  const group = new Mesh();
-  const parts = [
-    [sandGeos, 0xe8d49a, true],   // sand — outline the silhouette
-    [rockGeos, 0x5fae3f, true],   // bright grass hills
-    [trunkGeos, 0x6b4a2c, false],
-    [leafGeos, 0x2f9b46, false],
-  ];
-  for (const [geos, color, outline] of parts) {
-    if (!geos.length) continue;
-    const merged = mergeGeometries(geos, false);
-    merged.computeVertexNormals();
-    const mesh = new Mesh(merged, toonMaterial(color));
-    if (outline) withOutline(mesh, 0.18);
-    group.add(mesh);
-  }
-  group.position.set(150, 0, -170);
-  return group;
-}
-
-// The world (islands + future skyline) lives under a group whose transform is
-// the INVERSE of the ship's world pose. The ship stays fixed at the origin
-// pointing north — so its deck is a clean static physics collider — while the
-// world slides and turns past it as you sail. (A moving deck would make the
-// character controller fight a moving platform; this sidesteps that entirely.)
+// The world (Hispaniola ahead, Sevilla astern) lives under a group whose
+// transform is the INVERSE of the ship's world pose. The ship stays fixed at
+// the origin pointing north — so its deck is a clean static physics collider —
+// while the world slides and turns past it as you sail. (A moving deck would
+// make the character controller fight a moving platform; this sidesteps that
+// entirely.)
 const worldGroup = new Group();
 worldGroup.matrixAutoUpdate = false;
-worldGroup.add(buildIsland());
+worldGroup.add(buildWorld());
 scene.add(worldGroup);
 
 const shipAnchor = new Object3D();
@@ -138,10 +99,21 @@ syncWorld();
 const ship = createShip();
 scene.add(ship.root);
 
+// warm stern lantern — a local glow the bloom pass picks up at dusk
+const lantern = new PointLight(0xffb060, 7, 16, 2.0);
+lantern.position.copy(ship.lanternPos);
+scene.add(lantern);
+
 // --- orbital camera ---
 const camTarget = new Vector3(0, ship.deckY + 1.4, 2);
 const orbit = createOrbitCam(camera, canvas, camTarget);
-orbit.setRadius(24);
+orbit.setRadius(32);
+
+// cinematic post (bloom + warm grade + vignette + grain)
+const post = createPost(renderer, scene, camera);
+
+// theme music (starts on first interaction; 🔊 / M to mute)
+createAudio('/theme.mp3', 0.4);
 
 // --- physics + player ---
 const physics = await initPhysics();
@@ -151,6 +123,22 @@ const player = createPlayer(physics, scene, SPAWN);
 
 // the ship's company (named crew at their stations)
 const crew = createCrew(scene, ship);
+
+// shadow flags — everything solid casts + receives, but the inverted-hull ink
+// outlines (ShaderMaterial back-face shells) must NOT, or they'd bleed a fat
+// dark halo into the shadow map.
+function castShadows(obj) {
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    const isOutline = o.material && o.material.isShaderMaterial;
+    o.castShadow = !isOutline;
+    o.receiveShadow = !isOutline;
+  });
+}
+castShadows(ship.root);
+castShadows(crew.group);
+castShadows(player.group);
+castShadows(worldGroup);
 
 // other live players over Supabase Realtime (guest co-presence, no login gate)
 const peers = createPeers(scene, ship.deckY);
@@ -293,7 +281,7 @@ function frame(now) {
   world.update({ x: pp.x, y: player.feetY, z: pp.z, heading: 0, mode }, performance.now());
 
   orbit.update();
-  renderer.render(scene, camera);
+  post.render();
   stats.update(dt, renderer);
   requestAnimationFrame(frame);
 }

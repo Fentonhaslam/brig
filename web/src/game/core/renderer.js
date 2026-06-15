@@ -28,11 +28,13 @@ export function createRenderer(canvas) {
 
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.02;
 
-  // Shadows OFF by default (we fake them with cheap blob decals). Left wired so
-  // a single low-res shadow can be enabled later if it's worth the cost.
-  renderer.shadowMap.enabled = false;
+  // One soft directional shadow, tightly framed on the ship. Cheap because the
+  // shadow camera only covers the deck (~30 units), not the whole sea — masts,
+  // rigging and crew drop real shadows onto the planking, which is most of what
+  // sells depth. PCF keeps the edges from crawling.
+  renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
 
   function resize() {

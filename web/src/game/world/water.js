@@ -68,27 +68,25 @@ const frag = /* glsl */ `
     vec3 toCam = cameraPosition - vWorldPos;
     vec3 V = normalize(toCam);
 
-    // fresnel: glancing angles pick up the sky colour, QUANTIZED into a couple
-    // of hard bands for the cel-shaded Wind Waker water rather than a smooth
-    // ramp.
-    float fres = pow(1.0 - max(dot(V, N), 0.0), 3.0);
-    fres = floor(fres * 3.0) / 3.0;
+    // depth tone driven by WAVE HEIGHT: troughs sit deep, crests lift a touch
+    // lighter. (Driving it off the normal made almost the whole flat surface
+    // read as the bright "shallow" tone — the hard green slab.)
+    float lift = smoothstep(-0.35, 0.5, vH);
+    vec3 base = mix(uDeep, uShallow, lift);
 
-    // base colour: bright turquoise, stepped deep<->shallow
-    float crest = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
-    float band = step(0.82, crest); // hard line between trough and crest tone
-    vec3 base = mix(uDeep, uShallow, band);
+    // fresnel: glancing angles pick up the sky colour, softly banded for cel
+    float fres = pow(1.0 - max(dot(V, N), 0.0), 4.0);
+    fres = floor(fres * 4.0) / 4.0;
+    vec3 col = mix(base, uSky, fres * 0.5);
 
-    vec3 col = mix(base, uSky, fres * 0.6);
-
-    // toon whitecap foam on the tops of the larger waves
-    float foam = smoothstep(0.42, 0.6, vH);
-    col = mix(col, vec3(0.95, 0.99, 1.0), foam);
+    // toon whitecap foam only on the very tops of the larger waves
+    float foam = smoothstep(0.55, 0.72, vH);
+    col = mix(col, vec3(0.92, 0.97, 1.0), foam * 0.85);
 
     // crisp toon sun glint (hard-edged, not a soft Blinn falloff)
     vec3 H = normalize(V + normalize(uSunDir));
-    float spec = step(0.93, dot(N, H));
-    col += uSunColor * spec * 0.7;
+    float spec = step(0.96, dot(N, H));
+    col += uSunColor * spec * 0.6;
 
     // self-contained linear distance fog so the sea melts into the horizon
     // (handled here rather than via scene fog to keep the material independent

@@ -5,22 +5,20 @@ export default defineConfig({
     open: true,
     port: 5173,
   },
-  // Havok ships a .wasm that must be emitted as an asset, not pre-bundled
-  optimizeDeps: { exclude: ['@babylonjs/havok'] },
   build: {
     target: 'esnext',
     chunkSizeWarningLimit: 3500,
     rollupOptions: {
-      // index.html = current (Babylon) live build; game.html = the lightweight
-      // three.js rebuild in progress. game.html becomes index.html at the flip.
+      // The lightweight three.js build is now the default. index.html and
+      // game.html both serve it (game.html kept as the existing public URL).
+      // The old Babylon entry (bjs.html) is retired — no longer built, so its
+      // ~6.5 MB of engine is dropped from the bundle.
       input: { main: 'index.html', game: 'game.html' },
       output: {
         manualChunks: {
           three: ['three'],
           rapier: ['@dimforge/rapier3d-compat'],
           supabase: ['@supabase/supabase-js'],
-          babylon: ['@babylonjs/core'],
-          babylongui: ['@babylonjs/gui'],
         },
       },
     },

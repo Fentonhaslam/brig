@@ -35,7 +35,9 @@ const MAT = {
   sail: toonMaterial(0xddcfae, { side: DoubleSide }), // weathered canvas
   rope: toonMaterial(0x6a5a3a),   // rigging / cordage
   cask: toonMaterial(0x6f4a28),   // barrels / crates
-  glass: toonMaterial(0xf6cf7a),  // lantern glow
+  // lit glass: emissive so the post bloom blooms it into a warm lantern glow
+  glass: toonMaterial(0xf6cf7a, { emissive: 0xffb968, emissiveIntensity: 1.4 }),
+  window: toonMaterial(0xffca7a, { emissive: 0xffb060, emissiveIntensity: 1.0 }), // stern gallery
 };
 
 // hull half-width at a length fraction (0 stern .. 1 bow): full midships,
@@ -236,9 +238,17 @@ export function createShip() {
   // ship's boat stowed over the booms amidships
   B.box(MAT.cask, 1.5, 0.7, 3.6, 0, DECK_Y + 1.7, -1.5);
 
-  // --- STERN LANTERN ---
-  B.box(MAT.gold, 0.5, 0.7, 0.5, 0, DECK_Y + 3.4, -SHIP_LENGTH / 2 + 0.7);
-  B.box(MAT.glass, 0.34, 0.5, 0.34, 0, DECK_Y + 3.4, -SHIP_LENGTH / 2 + 0.7);
+  // --- STERN LANTERN (the glow source the night sea reads by) ---
+  const lanternPos = new Vector3(0, DECK_Y + 3.4, -SHIP_LENGTH / 2 + 0.7);
+  B.box(MAT.gold, 0.5, 0.7, 0.5, lanternPos.x, lanternPos.y, lanternPos.z);
+  B.box(MAT.glass, 0.34, 0.5, 0.34, lanternPos.x, lanternPos.y, lanternPos.z);
+  B.box(MAT.gold, 0.16, 0.16, 0.16, lanternPos.x, lanternPos.y + 0.45, lanternPos.z); // finial
+
+  // --- STERN GALLERY: a row of lit cabin windows across the transom ---
+  for (let i = -1; i <= 1; i++) {
+    B.box(MAT.trim, 0.5, 0.62, 0.12, i * 0.62, DECK_Y + 0.7, -SHIP_LENGTH * 0.45);   // frame
+    B.box(MAT.window, 0.34, 0.46, 0.14, i * 0.62, DECK_Y + 0.7, -SHIP_LENGTH * 0.45); // glass
+  }
 
   // --- STANDING RIGGING: shrouds, ratlines, stays (one rope bucket) ---
   const mastDefs = [
@@ -298,6 +308,8 @@ export function createShip() {
     sg.computeVertexNormals();
     const sail = new Mesh(sg, MAT.sail);
     sail.position.y = sailY;
+    sail.userData.base = sg.attributes.position.array.slice(); // rest pose for the billow
+    sail.userData.w = sailW;
     m.add(sail);
     sails.push(sail);
     root.add(m);
@@ -336,6 +348,18 @@ export function createShip() {
     for (const s of sails) {
       s.scale.y = furl;
       s.visible = furl > 0.02;
+      if (!s.visible) continue;
+      // wind in the canvas: a travelling billow on top of the rest belly, scaled
+      // by how far the sail is set (cheap — ~35 verts per sail, no normal rebuild)
+      const pos = s.geometry.attributes.position;
+      const base = s.userData.base, w = s.userData.w;
+      for (let i = 0; i < pos.count; i++) {
+        const bx = base[i * 3], by = base[i * 3 + 1], bz = base[i * 3 + 2];
+        const u = bx / w + 0.5;
+        const ripple = Math.sin(u * 5.0 + t * 2.4) * 0.16 + Math.sin(by * 0.7 + t * 1.6) * 0.1;
+        pos.setZ(i, bz + ripple * furl);
+      }
+      pos.needsUpdate = true;
     }
     // banner ripple
     const fp = flag.geometry.attributes.position;
@@ -365,6 +389,6 @@ export function createShip() {
 
   return {
     root, deckY: DECK_Y, length: SHIP_LENGTH, beam: SHIP_BEAM,
-    sails, wheel, helm, capstanPos, colliders, setSails, update,
+    sails, wheel, helm, capstanPos, lanternPos, colliders, setSails, update,
   };
 }

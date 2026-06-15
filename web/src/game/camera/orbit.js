@@ -7,11 +7,11 @@
 import { Vector3, MathUtils } from 'three';
 
 export function createOrbitCam(camera, dom, target = new Vector3(0, 1.5, 0)) {
-  let radius = 22;
+  let radius = 30;
   let yaw = Math.PI * 0.15;   // around Y
-  let pitch = 0.62;           // up/down, radians from horizontal-ish
+  let pitch = 0.4;            // up/down, radians — a low cinematic hero angle
   const minR = 6, maxR = 90;
-  const minPitch = 0.18, maxPitch = 1.35;
+  const minPitch = 0.1, maxPitch = 1.35;
 
   let dragging = false;
   let lastX = 0, lastY = 0;
