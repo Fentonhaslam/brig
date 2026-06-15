@@ -15,6 +15,7 @@ import { Color, Mesh, PlaneGeometry, ShaderMaterial, Vector2, Vector3 } from 'th
 const vert = /* glsl */ `
   precision highp float;
   uniform float uTime;
+  uniform float uChop;   // wave amplitude multiplier (rises in a storm)
   varying vec3 vWorldPos;
   varying vec3 vNormal;
   varying float vH;
@@ -34,9 +35,9 @@ const vert = /* glsl */ `
 
     vec2 g, gsum = vec2(0.0);
     float h = 0.0;
-    h += waveH(p, normalize(vec2( 1.0, 0.3)), 0.060, 1.1, 0.42, g); gsum += g;
-    h += waveH(p, normalize(vec2(-0.6, 1.0)), 0.110, 1.6, 0.22, g); gsum += g;
-    h += waveH(p, normalize(vec2( 0.8,-0.5)), 0.230, 2.3, 0.09, g); gsum += g;
+    h += waveH(p, normalize(vec2( 1.0, 0.3)), 0.060, 1.1, 0.42 * uChop, g); gsum += g;
+    h += waveH(p, normalize(vec2(-0.6, 1.0)), 0.110, 1.6, 0.22 * uChop, g); gsum += g;
+    h += waveH(p, normalize(vec2( 0.8,-0.5)), 0.230, 2.3, 0.09 * uChop, g); gsum += g;
 
     pos.y += h;
     vH = h;
@@ -61,6 +62,7 @@ const frag = /* glsl */ `
   uniform float uFogFar;
   uniform vec2 uHull;   // hull half-extents (beam/2, length/2); ship is at origin facing +z
   uniform float uSpeed; // 0..1 sail speed, for the wake
+  uniform float uStorm; // 0..1 weather — darker, greyer, foamier seas
   varying vec3 vWorldPos;
   varying vec3 vNormal;
   varying float vH;
@@ -89,9 +91,12 @@ const frag = /* glsl */ `
     fres = floor(fres * 4.0) / 4.0;
     vec3 col = mix(base, uSky, fres * 0.5);
 
-    // toon whitecap foam only on the very tops of the larger waves
-    float foam = smoothstep(0.55, 0.72, vH);
-    col = mix(col, vec3(0.92, 0.97, 1.0), foam * 0.85);
+    // a storm greys + darkens the sea
+    col = mix(col, vec3(0.34, 0.38, 0.42), uStorm * 0.55);
+
+    // toon whitecap foam on wave tops — more, and lower, the rougher it gets
+    float foam = smoothstep(0.55 - uStorm * 0.34, 0.72 - uStorm * 0.34, vH);
+    col = mix(col, vec3(0.92, 0.97, 1.0), foam * (0.85 + uStorm * 0.15));
 
     // crisp toon sun glint (hard-edged, not a soft Blinn falloff)
     vec3 H = normalize(V + normalize(uSunDir));
@@ -152,6 +157,8 @@ export function createWater(scene, size = 6000) {
       uFogFar: { value: 1400 },
       uHull: { value: new Vector2(4, 14) }, // ship beam/2, length/2 (set by main)
       uSpeed: { value: 0 },
+      uChop: { value: 1 },
+      uStorm: { value: 0 },
     },
     transparent: false,
   });

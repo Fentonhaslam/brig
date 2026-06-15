@@ -19,6 +19,7 @@ import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
+import { createWeather } from './world/weather.js';
 import { createMinimap } from './ui/minimap.js';
 import { createDialogue } from './ui/dialogue.js';
 import { getIdentity } from './player/identity.js';
@@ -141,6 +142,8 @@ createAudio('/theme.mp3', 0.4);
 
 // day/night cycle — drives sun, sky, sea, fog, lantern + bloom together
 const dayNight = createDayNight({ renderer, sun, hemi, sky, water, scene, post, lantern });
+// weather — storms that grey the sky, whip up the sea, rain + lightning
+const weather = createWeather({ scene, water, sky, camera });
 
 // voyage minimap — your position on the crossing relative to both ports
 const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z, yaw: shipYaw }));
@@ -443,7 +446,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit,
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather,
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
@@ -476,6 +479,7 @@ function frame(now) {
   physics.step(dt);
   const sd = dayNight.update(dt);
   water.update(t, sd, null, nav.speed); // wake strengthens with sail speed
+  weather.update(dt);                   // storms layer over the time of day
   ship.update(t);
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
