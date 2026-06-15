@@ -17,6 +17,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toonMaterial, withOutline } from '../core/toon.js';
+import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
 
 // per-colour bucket builder -> one merged mesh per material
 function makeBuilder() {
@@ -51,7 +52,8 @@ const C = {
   red: 0x9c3528, cream: 0xe8dcc0,
 };
 
-const BOW_GAP = 18;                                  // how far ahead of the bow the quay sits
+const BOW_GAP = HULL_HALF_LEN + 6;                   // quay sits clear of the (scaled) bow
+const YLIFT = DECK_TOP - 2.4;                        // raise the quay to the scaled deck height
 const HARBOUR_LOCAL = new Vector3(0, 0, -72);        // Hispaniola quay front (island-local)
 const SEVILLA_HARBOUR_LOCAL = new Vector3(0, 0, 38); // Sevilla quay front, on its sea (north) edge
 
@@ -124,11 +126,11 @@ function buildSevilla() {
 // offsets; main.js transforms those through the world matrix at berth time.
 // ---------------------------------------------------------------------------
 function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name }) {
-  const at = (dx, dy, dz) => [local.x + dx, local.y + dy, local.z + dz * dir];
+  const at = (dx, dy, dz) => [local.x + dx, local.y + dy + YLIFT, local.z + dz * dir];
   const colliders = [];
   const solid = (dx, dy, dz, hx, hy, hz, color) => {
     B.box(color, hx * 2, hy * 2, hz * 2, ...at(dx, dy, dz));
-    colliders.push({ hx, hy, hz, dx, dy, dz: dz * dir });
+    colliders.push({ hx, hy, hz, dx, dy: dy + YLIFT, dz: dz * dir });
   };
 
   // shared: quay deck + pilings + gangway with rails
@@ -185,7 +187,7 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
   return {
     name, kind, bowGap: BOW_GAP, approachYaw,
     worldPoint: worldOrigin.clone().add(local),
-    keepDoor: { dx: door.dx, dy: door.dy, dz: door.dz * dir },
+    keepDoor: { dx: door.dx, dy: door.dy + YLIFT, dz: door.dz * dir },
     colliders,
   };
 }

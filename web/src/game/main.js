@@ -276,6 +276,7 @@ const _hp = new Vector3();
 const _cv = new Vector3();
 let berthed = false;
 let activeHarbour = null;
+let berthCooldown = 0; // grace after casting off, so we don't instantly re-berth
 let harbourBodies = [];
 let swimT = 0; // seconds in the water (auto-rescue fallback)
 const keepDoorScene = new Vector3(0, 0, 1e6); // door of the active port, scene space
@@ -300,13 +301,14 @@ function berth(h) {
   keepDoorScene.set(h.worldPoint.x + h.keepDoor.dx, h.worldPoint.y + h.keepDoor.dy, h.worldPoint.z + h.keepDoor.dz).applyMatrix4(worldGroup.matrix);
   if (bowBody) { physics.world.removeRigidBody(bowBody.body); bowBody = null; }
   mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
-  player.teleport(0, ship.deckY + 1.6, 11); // on the bow (origin-fixed), by the gangway
+  player.teleport(0, ship.deckY + 1.6, ship.length * 0.4); // up by the bow / gangway
   ship.setSails(0.12);
 }
 
 function castOff() {
   if (!berthed) return;
   berthed = false; activeHarbour = null;
+  berthCooldown = 6; // sail clear before the port can grab us again
   keepDoorScene.set(0, 0, 1e6);
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
@@ -438,8 +440,9 @@ function frame(now) {
   mapAcc += dt;
   if (mapAcc > 0.15) { minimap.update(); mapAcc = 0; } // ~6 Hz, cheap
 
-  // auto-berth at whichever port comes within range
-  if (!berthed) {
+  // auto-berth at whichever port comes within range (after the cast-off grace)
+  if (berthCooldown > 0) berthCooldown -= dt;
+  if (!berthed && berthCooldown <= 0) {
     for (const h of harbours) {
       const p = harbourScene(h);
       if (Math.hypot(p.x, p.z) < BERTH_RANGE) { berth(h); break; }

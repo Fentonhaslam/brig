@@ -24,6 +24,14 @@ export const SHIP_BEAM = 8;
 const HULL_DEPTH = 4.2;
 const DECK_Y = 2.4;
 
+// The whole ship is built at the base size above, then scaled up uniformly so
+// she reads as a proper great nao against the human-sized player. Everything
+// returned (deck height, helm, colliders…) is pre-multiplied by this, and the
+// harbour lifts to the scaled deck height — so docking + walking stay aligned.
+export const SHIP_SCALE = 1.4;
+export const DECK_TOP = DECK_Y * SHIP_SCALE;            // walkable deck height (scaled)
+export const HULL_HALF_LEN = (SHIP_LENGTH / 2) * SHIP_SCALE; // bow/stern reach (scaled)
+
 // --- toon palette ---
 const MAT = {
   hull: toonMaterial(0x5a3a20),   // dark oiled wood
@@ -295,6 +303,19 @@ export function createShip() {
     B.seg(MAT.rope, [0, headY, m.z], [0, DECK_Y + 1.2, m.z + m.top * 0.9], 0.05);
   }
 
+  // --- SHIP'S BELL on a frame at the break of the quarterdeck ---
+  const bz0 = -SHIP_LENGTH * 0.32 + 3.7;
+  B.box(MAT.trim, 0.12, 1.3, 0.12, -0.7, DECK_Y + 0.75, bz0);
+  B.box(MAT.trim, 0.12, 1.3, 0.12, 0.7, DECK_Y + 0.75, bz0);
+  B.box(MAT.trim, 1.7, 0.14, 0.14, 0, DECK_Y + 1.4, bz0);
+  B.cyl(MAT.gold, 0.16, 0.26, 0.42, 0, DECK_Y + 1.12, bz0, 8);
+
+  // --- a little more cargo lashed amidships ---
+  for (const [x, z, s] of [[-2.0, -3.0, 0.9], [2.4, -2.2, 0.7], [-2.6, 6.4, 0.8]]) {
+    B.box(MAT.cask, s, s, s, x, DECK_Y + s / 2, z);
+  }
+  for (const [x, z] of [[2.6, -4.5], [-3.0, 5.5]]) B.cyl(MAT.rope, 0.3, 0.34, 0.18, x, DECK_Y + 0.09, z, 10);
+
   // commit all static merged geometry (outline the rails & castles silhouette)
   B.commit(root, [MAT.trim]);
 
@@ -404,8 +425,19 @@ export function createShip() {
   ];
   colliders.push(...stepColliders); // the deck stairs
 
+  // scale the whole vessel up; pre-scale everything main.js consumes so the
+  // physics colliders, helm and lantern line up with the enlarged visuals
+  const S = SHIP_SCALE;
+  root.scale.setScalar(S);
+  const scaled = colliders.map((c) => ({
+    hx: c.hx * S, hy: c.hy * S, hz: c.hz * S, x: c.x * S, y: c.y * S, z: c.z * S,
+  }));
   return {
-    root, deckY: DECK_Y, length: SHIP_LENGTH, beam: SHIP_BEAM,
-    sails, wheel, helm, capstanPos, lanternPos, colliders, setSails, update,
+    root, deckY: DECK_Y * S, length: SHIP_LENGTH * S, beam: SHIP_BEAM * S,
+    sails, wheel,
+    helm: helm.clone().multiplyScalar(S),
+    capstanPos: capstanPos.clone().multiplyScalar(S),
+    lanternPos: lanternPos.clone().multiplyScalar(S),
+    colliders: scaled, setSails, update,
   };
 }
