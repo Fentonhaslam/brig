@@ -19,6 +19,7 @@ import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
+import { createMinimap } from './ui/minimap.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -82,7 +83,8 @@ water.material.uniforms.uFogFar.value = 1800;
 // entirely.)
 const worldGroup = new Group();
 worldGroup.matrixAutoUpdate = false;
-worldGroup.add(buildWorld());
+const built = buildWorld();
+worldGroup.add(built.group);
 scene.add(worldGroup);
 
 const shipAnchor = new Object3D();
@@ -118,6 +120,9 @@ createAudio('/theme.mp3', 0.4);
 
 // day/night cycle — drives sun, sky, sea, fog, lantern + bloom together
 const dayNight = createDayNight({ sun, hemi, sky, water, scene, post, lantern });
+
+// voyage minimap — your position on the crossing relative to both ports
+const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z, yaw: shipYaw }));
 
 // --- physics + player ---
 const physics = await initPhysics();
@@ -207,7 +212,7 @@ window.addEventListener('keydown', (e) => {
 
 // --- sailing state ---
 const nav = { speed: 0, heading: 0 }; // speed 0..1, heading radians
-const SAIL_SPEED = 26;
+const SAIL_SPEED = 44; // faster, so the ocean-spanning crossing isn't a slog
 
 const UP = new Vector3(0, 1, 0);
 const fwd = new Vector3();
@@ -262,13 +267,25 @@ function updateHelm(dt) {
   hint.textContent = `⛵ Helm — W/S sail (${Math.round(nav.speed * 100)}%) · A/D steer · E to step away`;
 }
 
+// dev hook — lets headless checks jump the ship across the map; harmless in prod
+window.brig = {
+  get shipPos() { return shipPos; },
+  get shipYaw() { return shipYaw; },
+  setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
+  player, ship, places: built.places,
+};
+
 // --- loop ---
 let last = performance.now();
 let t = 0;
+let mapAcc = 0;
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   t += dt;
+
+  mapAcc += dt;
+  if (mapAcc > 0.15) { minimap.update(); mapAcc = 0; } // ~6 Hz, cheap
 
   physics.step(dt);
   const sd = dayNight.update(dt);

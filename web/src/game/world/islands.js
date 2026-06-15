@@ -92,7 +92,7 @@ function buildHispaniola() {
   B.box(C.red, 3, 2, 0.2, kx - 10.6, 37.5, kz);              // banner
 
   B.commit(g, [C.sand, C.grass, C.stone, C.wood]);
-  g.position.set(180, 0, 470); // dead ahead, a sail away
+  g.position.copy(HISPANIOLA); // far across the ocean — out of sight until you near it
   return g;
 }
 
@@ -114,14 +114,29 @@ function buildSevilla() {
   B.cone(D, 5, 12, 40, 102, 2, 6);        // crown
 
   B.commit(g);
-  g.position.set(-30, 0, -360); // astern — the port you're leaving
+  g.position.copy(SEVILLA); // astern at the start — the port you're leaving
   return g;
 }
 
-// returns a Group to add into the world group
+// --- the map ----------------------------------------------------------------
+// Absolute world coordinates (the ship moves THROUGH this fixed map; the world
+// group counter-transforms so the ship can stay at the origin). Sevilla and
+// Hispaniola sit an ocean apart — well beyond the fog distance — so only one is
+// ever in view: you depart Sevilla, cross open water, and raise Hispaniola near
+// the far end. (Fog far is ~1800; the crossing is ~4400, so each landfall fades
+// up over the horizon rather than both hanging in view at once.)
+export const SEVILLA = new Vector3(0, 0, -260);
+export const HISPANIOLA = new Vector3(160, 0, 4200);
+
+export const PLACES = [
+  { name: 'Sevilla', x: SEVILLA.x, z: SEVILLA.z },
+  { name: 'Santo Domingo', x: HISPANIOLA.x, z: HISPANIOLA.z },
+];
+
+// returns { group, places } to add into the world group
 export function buildWorld() {
-  const w = new Group();
-  w.add(buildHispaniola());
-  w.add(buildSevilla());
-  return w;
+  const group = new Group();
+  group.add(buildHispaniola());
+  group.add(buildSevilla());
+  return { group, places: PLACES };
 }
