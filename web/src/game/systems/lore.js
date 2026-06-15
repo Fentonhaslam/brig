@@ -10,7 +10,7 @@ import {
   Sprite, SpriteMaterial, CanvasTexture, SRGBColorSpace,
 } from 'three';
 import { toonMaterial, withOutline } from '../core/toon.js';
-import { listLore } from '../../net/lore.js';
+import { listLore, addLore } from '../../net/lore.js';
 
 // founding inscriptions so the courtyard is never empty (offline / fresh DB)
 const SEED = [
@@ -46,6 +46,8 @@ export function createLore({ group, anchor, handle, key }) {
   group.add(root);
 
   const entries = [];
+  let session = null;
+  let curHandle = handle;
   const LSKEY = 'brig:lore:' + key;
   const loadLocal = () => { try { return JSON.parse(localStorage.getItem(LSKEY) || '[]'); } catch { return []; } };
   const saveLocal = (l) => { try { localStorage.setItem(LSKEY, JSON.stringify(l)); } catch {} };
@@ -87,16 +89,24 @@ export function createLore({ group, anchor, handle, key }) {
     render();
   }).catch(() => {});
 
-  // a guest mark: stored locally and raised for this session
+  // raise a memory-stone. Signed in -> insert to the shared chronicle as the
+  // real author (visible to everyone); guest -> save locally for this browser.
   function inscribe(title, body) {
-    const entry = { title: title.trim(), body: body.trim(), author_handle: handle, local: true };
-    if (!entry.title || !entry.body) return false;
-    localEntries.push(entry); saveLocal(localEntries);
+    const t = title.trim(), b = body.trim();
+    if (!t || !b) return false;
+    const entry = { title: t, body: b, author_handle: curHandle, local: !session };
     entries.push(entry); render();
+    if (session) {
+      addLore({ session, handle: curHandle, title: t, body: b, kind: 'monument' }).catch(() => {});
+    } else {
+      localEntries.push(entry); saveLocal(localEntries);
+    }
     return true;
   }
 
-  return { inscribe, get count() { return entries.length; } };
+  function setSession(s, h) { session = s; if (h) curHandle = h; }
+
+  return { inscribe, setSession, get count() { return entries.length; } };
 }
 
 // --- the inscribe panel (parchment) ----------------------------------------

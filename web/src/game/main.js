@@ -24,6 +24,7 @@ import { createDialogue } from './ui/dialogue.js';
 import { getIdentity } from './player/identity.js';
 import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
+import { createAccount } from './systems/account.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -163,6 +164,12 @@ const inventory = createInventory({ key: guestId, handle }); // cargo + coin, pe
 // the world chronicle as memory-stones in the keep courtyard
 const lore = createLore({ group: built.harbour.group, anchor: built.harbour.courtyard, handle, key: guestId });
 const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
+// optional, non-blocking sign-in — upgrades saves to a cross-device account
+const account = createAccount();
+account.onSignIn(({ session, handle: h, userId }) => {
+  inventory.setAccount(userId, h);  // cargo follows the account
+  lore.setSession(session, h);      // inscriptions become permanent + world-shared
+});
 const world = joinWorld({ handle, userId: guestId });
 world.onPeers((p) => peers.sync(p));
 

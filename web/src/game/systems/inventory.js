@@ -24,7 +24,9 @@ const CATALOG = {
 const START = { coin: 200, wine: 6, oil: 4, biscuit: 8, cloth: 3, tools: 2 };
 
 export function createInventory({ key, handle }) {
-  const LSKEY = 'brig:inv:' + key;
+  let curKey = key;
+  let curHandle = handle;
+  let LSKEY = 'brig:inv:' + curKey;
   let items = loadLocal();
   let saveTimer = null;
 
@@ -38,12 +40,12 @@ export function createInventory({ key, handle }) {
     if (!online) return;
     try {
       const { data, error } = await supabase
-        .from('inventories').select('items').eq('player_key', key).maybeSingle();
+        .from('inventories').select('items').eq('player_key', curKey).maybeSingle();
       if (error) return;                 // table missing / RLS → stay local
       if (data && data.items && Object.keys(data.items).length) {
         items = data.items; persistLocal(); render();
       } else {
-        pushCloud();                     // no row yet → seed it
+        pushCloud();                     // no row yet → seed it (carries guest cargo to the account)
       }
     } catch {}
   }
@@ -51,10 +53,20 @@ export function createInventory({ key, handle }) {
     if (!online) return;
     try {
       await supabase.from('inventories').upsert(
-        { player_key: key, handle, items, updated_at: new Date().toISOString() },
+        { player_key: curKey, handle: curHandle, items, updated_at: new Date().toISOString() },
         { onConflict: 'player_key' },
       );
     } catch {}
+  }
+
+  // switch saves to a signed-in account: keep the guest's current cargo, then
+  // reconcile with the account's stored hold (or seed it from what we have)
+  function setAccount(userId, accountHandle) {
+    curKey = 'acct:' + userId;
+    curHandle = accountHandle || curHandle;
+    LSKEY = 'brig:inv:' + curKey;
+    persistLocal();
+    pullCloud();
   }
   function save() {
     persistLocal();
@@ -127,5 +139,5 @@ export function createInventory({ key, handle }) {
   render();
   pullCloud();
 
-  return { add, take, count, get items() { return items; }, toggle, render, catalog: CATALOG };
+  return { add, take, count, get items() { return items; }, toggle, render, setAccount, catalog: CATALOG };
 }
