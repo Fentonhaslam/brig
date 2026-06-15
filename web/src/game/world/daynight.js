@@ -8,7 +8,7 @@
 
 import { Color, Vector3, MathUtils } from 'three';
 
-const DAY_LENGTH = 300; // seconds for a full sun-to-sun cycle
+const DAY_LENGTH = 1200; // seconds for a full sun-to-sun cycle (long, daylight-heavy)
 
 // night / golden / day stops for each thing we recolour. Night is lifted to a
 // moonlit blue (rather than near-black) so the deck stays readable after dark.
@@ -27,7 +27,7 @@ export function createDayNight({ renderer, sun, hemi, sky, water, scene, post, l
   const sunDir = new Vector3();
   const _a = new Color(), _b = new Color(), _c = new Color();
 
-  let phase = 0.46; // start: low warm sun, about to dip into dusk
+  let phase = 0.08; // start in the morning, sun climbing — long day ahead
 
   // three-stop lerp keyed on a 0(night)..0.5(gold)..1(day) factor
   function tri(out, stops, t) {
@@ -39,7 +39,7 @@ export function createDayNight({ renderer, sun, hemi, sky, water, scene, post, l
   function update(dt) {
     phase = (phase + dt / DAY_LENGTH) % 1;
     const a = phase * Math.PI * 2;
-    const el = Math.sin(a) * 0.9;            // elevation, radians
+    const el = Math.sin(a) * 0.82 + 0.12;    // elevation, radians — biased up so day outlasts night
     const az = a + Math.PI * 0.25;
     sunDir.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).normalize();
 
