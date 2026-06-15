@@ -71,6 +71,32 @@ do $$ begin
 exception when others then null; end $$;
 
 -- ---------------------------------------------------------------------------
+-- inventories: the player's hold (cargo / coin), keyed by a stable browser
+-- identity. Guest world for now — the publishable (anon) key may read/write,
+-- so saves work without a login. Tighten to auth.uid() when login lands.
+-- ---------------------------------------------------------------------------
+create table if not exists public.inventories (
+  player_key  text primary key,
+  handle      text,
+  items       jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.inventories enable row level security;
+
+drop policy if exists "inventories readable" on public.inventories;
+create policy "inventories readable"
+  on public.inventories for select to anon, authenticated using (true);
+
+drop policy if exists "inventories insertable" on public.inventories;
+create policy "inventories insertable"
+  on public.inventories for insert to anon, authenticated with check (true);
+
+drop policy if exists "inventories updatable" on public.inventories;
+create policy "inventories updatable"
+  on public.inventories for update to anon, authenticated using (true) with check (true);
+
+-- ---------------------------------------------------------------------------
 -- auto-create a profile when a new auth user signs up
 -- (security definer, kept in a private, non-API-exposed schema)
 -- ---------------------------------------------------------------------------

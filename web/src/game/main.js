@@ -20,6 +20,8 @@ import { createShip } from './world/ship.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
 import { createMinimap } from './ui/minimap.js';
+import { getIdentity } from './player/identity.js';
+import { createInventory } from './systems/inventory.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -151,8 +153,8 @@ castShadows(worldGroup);
 
 // other live players over Supabase Realtime (guest co-presence, no login gate)
 const peers = createPeers(scene, ship.deckY);
-const guestId = 'guest-' + Math.floor(Math.random() * 1e7);
-const handle = 'Sailor ' + (1000 + Math.floor(Math.random() * 9000));
+const { key: guestId, handle } = getIdentity();   // stable across sessions
+const inventory = createInventory({ key: guestId, handle }); // cargo + coin, persisted
 const world = joinWorld({ handle, userId: guestId });
 world.onPeers((p) => peers.sync(p));
 
@@ -272,7 +274,7 @@ window.brig = {
   get shipPos() { return shipPos; },
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
-  player, ship, places: built.places,
+  player, ship, places: built.places, inv: inventory,
 };
 
 // --- loop ---
