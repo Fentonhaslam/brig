@@ -22,6 +22,7 @@ import { createDayNight } from './world/daynight.js';
 import { createMinimap } from './ui/minimap.js';
 import { getIdentity } from './player/identity.js';
 import { createInventory } from './systems/inventory.js';
+import { createLore, createInscribePanel } from './systems/lore.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -158,6 +159,9 @@ castShadows(worldGroup);
 const peers = createPeers(scene, ship.deckY);
 const { key: guestId, handle } = getIdentity();   // stable across sessions
 const inventory = createInventory({ key: guestId, handle }); // cargo + coin, persisted
+// the world chronicle as memory-stones in the keep courtyard
+const lore = createLore({ group: built.harbour.group, anchor: built.harbour.courtyard, handle, key: guestId });
+const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
 const world = joinWorld({ handle, userId: guestId });
 world.onPeers((p) => peers.sync(p));
 
@@ -211,6 +215,8 @@ function hideDialogue() { talking = null; dlg.style.display = 'none'; }
 let nearNpc = null; // crew member in range this frame
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyF') return;
+  if (inscribe.isOpen) { inscribe.hide(); return; }
+  if (berthed && mode === 'walk' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
   if (talking) hideDialogue();
   else if (nearNpc && mode === 'walk') showDialogue(nearNpc);
 });
@@ -308,7 +314,7 @@ function updateWalk(dt) {
   } else if (berthed && player.position.z > 15) {
     // ashore on the quay
     hint.textContent = player.position.distanceTo(keepDoorScene) < 6
-      ? 'The Keep of Santo Domingo — its chronicles await'
+      ? 'The Keep of Santo Domingo — press F to inscribe a memory-stone'
       : 'Ashore at Santo Domingo — walk to the keep · return to the helm to cast off';
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
@@ -351,7 +357,7 @@ window.brig = {
   get shipPos() { return shipPos; },
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
-  player, ship, places: built.places, inv: inventory,
+  player, ship, places: built.places, inv: inventory, lore, inscribe,
   berth, castOff, get berthed() { return berthed; },
   // jump to just off Santo Domingo, ready to auto-berth next frame
   approachHarbour() { this.setShip(harbour.worldPoint.x, harbour.worldPoint.z - 40, 0); },

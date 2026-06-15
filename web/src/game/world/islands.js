@@ -80,6 +80,9 @@ function buildHispaniola() {
 
   // the walkable harbour (low quay + gangway + keep) at the seaward edge
   const harbour = buildHarbour(B);
+  harbour.group = g; // dynamic props (memory-stones) parent here, riding with the island
+  // courtyard anchor (island-local) — where lore stones stand, in front of the keep
+  harbour.courtyard = { x: 0, y: 2.5, z: HARBOUR_LOCAL.z + 14 };
 
   B.commit(g, [C.sand, C.grass, C.stone, C.wood]);
   g.position.copy(HISPANIOLA); // far across the ocean — out of sight until you near it
