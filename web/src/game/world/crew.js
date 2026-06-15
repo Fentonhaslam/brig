@@ -103,18 +103,63 @@ export function createCrew(scene, ship) {
     node.rotation.y = s.ry;
     group.add(node);
     const conv = TREES[s.name] || linearTree(s.lines); // branching where authored, else a single beat
+    const base = new Vector3(s.p[0], s.p[1], s.p[2]);
     return {
       name: s.name, title: s.title, role: s.role,
       tree: conv.tree, start: conv.start,
-      node, pos: new Vector3(s.p[0], s.p[1], s.p[2]), phase: i * 1.7, baseY: s.p[1],
+      node, pos: base.clone(), base, target: base.clone(),
+      phase: i * 1.7, baseY: s.p[1],
+      mode: 'idle', timer: 1 + i * 0.6, stride: 0, gesture: 0,
+      radius: s.p[1] > D + 0.5 ? 1.6 : 2.6, // raised-deck hands roam less
+      frozen: false,
     };
   });
 
-  function update(t) {
+  const clampX = (x) => Math.max(-2.8, Math.min(2.8, x));
+
+  function update(t, dt = 0.016) {
     for (const c of roster) {
-      // gentle idle: subtle limb sway + a slow weight-shift bob
-      animateFigure(c.node, t * 1.6 + c.phase, 0.12);
-      c.node.position.y = c.baseY + Math.sin(t * 1.1 + c.phase) * 0.015;
+      if (c.frozen) {
+        // standing and talking — face roughly forward, idle sway only
+        c.mode = 'idle'; c.gesture = 0;
+        animateFigure(c.node, t * 1.6 + c.phase, 0.1);
+      } else if (c.mode === 'walk') {
+        // walk toward the chosen spot, swinging arms + legs
+        const dx = c.target.x - c.node.position.x, dz = c.target.z - c.node.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.16) { c.mode = 'idle'; c.timer = 1.5 + Math.random() * 3.5; c.stride = 0; }
+        else {
+          const step = Math.min(d, 1.2 * dt);
+          c.node.position.x += (dx / d) * step;
+          c.node.position.z += (dz / d) * step;
+          c.node.rotation.y = Math.atan2(dx, dz);
+          c.stride += dt * 7;
+          animateFigure(c.node, c.stride, 1);
+        }
+      } else {
+        // idle: either a gentle sway or a held gesture (arm raised, as if
+        // hauling a line, pointing, or calling out)
+        c.timer -= dt;
+        if (c.gesture > 0) {
+          c.gesture -= dt;
+          animateFigure(c.node, 0, 0);
+          c.node.userData.parts.armR.rotation.x = -1.3 + Math.sin(t * 5) * 0.15;
+        } else {
+          animateFigure(c.node, t * 1.6 + c.phase, 0.12);
+        }
+        if (c.timer <= 0) {
+          if (Math.random() < 0.62) { // wander to a new spot near the station
+            const a = Math.random() * Math.PI * 2, r = 0.8 + Math.random() * c.radius;
+            c.target.set(clampX(c.base.x + Math.cos(a) * r), c.base.y, c.base.z + Math.sin(a) * r);
+            c.mode = 'walk';
+          } else {                     // do a little gesture in place
+            c.gesture = 1.0 + Math.random() * 1.6;
+            c.timer = c.gesture + 0.8;
+          }
+        }
+      }
+      c.node.position.y = c.baseY + Math.sin(t * 1.1 + c.phase) * 0.012;
+      c.pos.copy(c.node.position); // keep proximity + dialogue framing on the live spot
     }
   }
 

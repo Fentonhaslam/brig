@@ -240,6 +240,7 @@ window.addEventListener('keydown', (e) => {
 // swing the camera in tight over the player's shoulder, looking at the NPC
 function frameTalk(npc) {
   talkingNpc = npc;
+  npc.frozen = true; // stop them wandering off mid-conversation
   const a = Math.atan2(npc.pos.x - player.position.x, npc.pos.z - player.position.z);
   orbit.setYaw(a + Math.PI + 0.45); // behind the player, angled three-quarter
   orbit.setPitch(0.3);
@@ -332,7 +333,7 @@ function updateWalk(dt) {
     const np = talkingNpc.pos;
     camTarget.lerp(new Vector3((player.position.x + np.x) / 2, np.y + 1.1, (player.position.z + np.z) / 2), 0.18);
   } else {
-    if (talkingNpc) { talkingNpc = null; orbit.setRadius(CAM.walk); orbit.setPitch(0.4); } // conversation ended
+    if (talkingNpc) { talkingNpc.frozen = false; talkingNpc = null; orbit.setRadius(CAM.walk); orbit.setPitch(0.4); } // conversation ended
     camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
   }
 
@@ -430,7 +431,7 @@ function frame(now) {
   ship.update(t);
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
-  crew.update(t);
+  crew.update(t, dt);
   peers.update(dt);
 
   if (mode === 'walk') updateWalk(dt);
