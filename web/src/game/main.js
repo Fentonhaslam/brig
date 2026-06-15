@@ -215,6 +215,14 @@ window.addEventListener('keydown', (e) => {
   else if (nearNpc && mode === 'walk') showDialogue(nearNpc);
 });
 
+// Space clambers back aboard when treading water alongside the hull
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && player.swimming && nearShipXZ()) {
+    player.setSwim(false); swimT = 0;
+    player.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
+  }
+});
+
 // --- sailing state ---
 const nav = { speed: 0, heading: 0 }; // speed 0..1, heading radians
 const SAIL_SPEED = 44; // faster, so the ocean-spanning crossing isn't a slog
@@ -233,6 +241,7 @@ const BERTH_RANGE = 55;
 const _hp = new Vector3();
 let berthed = false;
 let harbourBodies = [];
+let swimT = 0; // seconds in the water (auto-rescue fallback)
 
 function harbourScenePos() { return _hp.copy(harbour.worldPoint).applyMatrix4(worldGroup.matrix); }
 const keepDoorScene = new Vector3(harbour.keepDoor.dx, harbour.keepDoor.dy, harbour.keepDoor.dz + harbour.bowGap);
@@ -278,8 +287,14 @@ function updateWalk(dt) {
   }
   player.update(dt);
 
-  // fell overboard -> respawn on deck
-  if (player.feetY < -4) player.teleport(SPAWN.x, SPAWN.y, SPAWN.z);
+  // overboard -> swim at the surface; climb aboard near the ship, or be hauled
+  // back in after a while if you can't make it
+  if (!player.swimming && player.feetY < -1.0) { player.setSwim(true); swimT = 0; }
+  if (player.swimming) {
+    swimT += dt;
+    if (player.feetY > 0.6) { player.setSwim(false); swimT = 0; }                 // climbed out
+    else if (swimT > 25) { player.setSwim(false); player.teleport(SPAWN.x, SPAWN.y, SPAWN.z); swimT = 0; }
+  }
 
   camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
 
@@ -287,7 +302,10 @@ function updateWalk(dt) {
   nearNpc = crew.nearest(player.position, 2.6);
   if (talking && (!nearNpc || nearNpc !== talking)) hideDialogue();
 
-  if (berthed && player.position.z > 15) {
+  if (player.swimming) {
+    hint.textContent = nearShipXZ() ? 'Tread water — press Space to climb aboard'
+      : 'Overboard! Swim back to the ship';
+  } else if (berthed && player.position.z > 15) {
     // ashore on the quay
     hint.textContent = player.position.distanceTo(keepDoorScene) < 6
       ? 'The Keep of Santo Domingo — its chronicles await'
@@ -296,6 +314,11 @@ function updateWalk(dt) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
   else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'Click to move · WASD to walk · Shift to run';
+}
+
+// is the swimmer alongside the hull (close enough to clamber back aboard)?
+function nearShipXZ() {
+  return Math.hypot(player.position.x, player.position.z) < ship.beam * 0.7 + 3;
 }
 
 function updateHelm(dt) {
