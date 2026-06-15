@@ -25,6 +25,7 @@ import { getIdentity } from './player/identity.js';
 import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
 import { createAccount } from './systems/account.js';
+import { createCannons } from './systems/cannons.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -151,6 +152,14 @@ const bowIdx = ship.colliders.findIndex((c) => c.hz < 0.5 && c.z > 5);
 let bowBody = shipBodies[bowIdx];
 const SPAWN = new Vector3(0, ship.deckY + 1.6, 3);
 const player = createPlayer(physics, scene, SPAWN);
+
+// run out the guns (R) + ring the bell (B)
+const cannons = createCannons(scene, physics, ship);
+window.addEventListener('keydown', (e) => {
+  if (dialogue.isOpen || inscribe.isOpen || player.swimming) return;
+  if (e.code === 'KeyR') cannons.fire();
+  else if (e.code === 'KeyB') cannons.ringBell();
+});
 
 // the ship's company (named crew at their stations)
 const crew = createCrew(scene, ship);
@@ -377,7 +386,7 @@ function updateWalk(dt) {
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
-  else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'Click to move · WASD to walk · Shift to run';
+  else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'WASD / click to move · Shift run · R cannons · B bell';
 }
 
 // is the swimmer alongside the hull (close enough to clamber back aboard)?
@@ -426,7 +435,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; }, water, orbit,
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons,
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
@@ -464,6 +473,7 @@ function frame(now) {
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
   peers.update(dt);
+  cannons.update(dt);
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
