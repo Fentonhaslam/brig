@@ -112,10 +112,18 @@ const lantern = new PointLight(0xffb060, 7, 16, 2.0);
 lantern.position.copy(ship.lanternPos);
 scene.add(lantern);
 
+// a soft lantern that follows the player — lights the deck around you after
+// dark so you can always see where you're walking (fades out by day)
+const torch = new PointLight(0xffd6a0, 0, 11, 1.6);
+scene.add(torch);
+
 // --- orbital camera ---
 const camTarget = new Vector3(0, ship.deckY + 1.4, 2);
 const orbit = createOrbitCam(camera, canvas, camTarget);
-orbit.setRadius(32);
+// camera distance by context: close third-person on foot, pulled back to see
+// the whole ship at the helm, right in tight for a conversation
+const CAM = { walk: 13, helm: 34, talk: 6.5 };
+orbit.setRadius(CAM.walk);
 
 // cinematic post (bloom + warm grade + vignette + grain)
 const post = createPost(renderer, scene, camera);
@@ -124,7 +132,7 @@ const post = createPost(renderer, scene, camera);
 createAudio('/theme.mp3', 0.4);
 
 // day/night cycle — drives sun, sky, sea, fog, lantern + bloom together
-const dayNight = createDayNight({ sun, hemi, sky, water, scene, post, lantern });
+const dayNight = createDayNight({ renderer, sun, hemi, sky, water, scene, post, lantern });
 
 // voyage minimap — your position on the crossing relative to both ports
 const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z, yaw: shipYaw }));
@@ -188,9 +196,9 @@ input.onClick((ray) => {
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE') return;
   if (mode === 'walk' && player.position.distanceTo(ship.helm) < 3.5) {
-    mode = 'helm'; moveTarget = null; player.setVisible(false);
+    mode = 'helm'; moveTarget = null; player.setVisible(false); orbit.setRadius(CAM.helm);
   } else if (mode === 'helm') {
-    mode = 'walk'; player.setVisible(true);
+    mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
     player.teleport(ship.helm.x, ship.deckY + 1.6, ship.helm.z + 1.5);
   }
 });
@@ -213,7 +221,8 @@ document.body.appendChild(helmHud);
 // branching conversations with the crew
 const dialogue = createDialogue();
 
-let nearNpc = null; // crew member in range this frame
+let nearNpc = null;     // crew member in range this frame
+let talkingNpc = null;  // who we're framed on during a conversation
 window.addEventListener('keydown', (e) => {
   // while a conversation is open, the keys drive the choices
   if (dialogue.isOpen) {
@@ -225,8 +234,17 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyF') return;
   if (inscribe.isOpen) { inscribe.hide(); return; }
   if (berthed && mode === 'walk' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
-  if (nearNpc && mode === 'walk') dialogue.open(nearNpc);
+  if (nearNpc && mode === 'walk') { dialogue.open(nearNpc); frameTalk(nearNpc); }
 });
+
+// swing the camera in tight over the player's shoulder, looking at the NPC
+function frameTalk(npc) {
+  talkingNpc = npc;
+  const a = Math.atan2(npc.pos.x - player.position.x, npc.pos.z - player.position.z);
+  orbit.setYaw(a + Math.PI + 0.45); // behind the player, angled three-quarter
+  orbit.setPitch(0.3);
+  orbit.setRadius(CAM.talk);
+}
 
 // Space clambers back aboard when treading water alongside the hull
 window.addEventListener('keydown', (e) => {
@@ -269,7 +287,7 @@ function berth() {
   harbourBodies = harbour.colliders.map((c) =>
     physics.staticCuboid(c.hx, c.hy, c.hz, c.dx, c.dy, c.dz + harbour.bowGap));
   if (bowBody) { physics.world.removeRigidBody(bowBody.body); bowBody = null; }
-  mode = 'walk'; player.setVisible(true);
+  mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
   player.teleport(0, ship.deckY + 1.6, 11); // on the bow, by the gangway
   ship.setSails(0.12);
 }
@@ -309,7 +327,14 @@ function updateWalk(dt) {
     else if (swimT > 25) { player.setSwim(false); player.teleport(SPAWN.x, SPAWN.y, SPAWN.z); swimT = 0; }
   }
 
-  camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
+  if (dialogue.isOpen && talkingNpc) {
+    // frame a two-shot: midpoint of player + NPC, at head height
+    const np = talkingNpc.pos;
+    camTarget.lerp(new Vector3((player.position.x + np.x) / 2, np.y + 1.1, (player.position.z + np.z) / 2), 0.18);
+  } else {
+    if (talkingNpc) { talkingNpc = null; orbit.setRadius(CAM.walk); orbit.setPitch(0.4); } // conversation ended
+    camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
+  }
 
   // crew proximity / interaction (walk away to end a chat)
   nearNpc = crew.nearest(player.position, 2.6);
@@ -374,10 +399,11 @@ window.brig = {
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
   player, ship, places: built.places, inv: inventory, lore, inscribe,
-  dialogue, crew,
+  dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
   // jump to just off Santo Domingo, ready to auto-berth next frame
   approachHarbour() { this.setShip(harbour.worldPoint.x, harbour.worldPoint.z - 40, 0); },
+  walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
 };
 
 // --- loop ---
@@ -409,6 +435,10 @@ function frame(now) {
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
+
+  // the player's lantern lights the deck around them after dark
+  torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);
+  torch.intensity = 5.5 * (1 - dayNight.dayAmount);
 
   // broadcast our position to other players (throttled inside)
   const pp = player.position;

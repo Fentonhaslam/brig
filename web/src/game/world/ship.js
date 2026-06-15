@@ -157,6 +157,22 @@ export function createShip() {
   B.box(MAT.deck, SHIP_BEAM * 0.78, 1.2, 6.5, 0, DECK_Y + 0.6, -SHIP_LENGTH * 0.32); // quarterdeck
   B.box(MAT.trim, SHIP_BEAM * 0.8, 0.25, 0.4, 0, DECK_Y + 1.2, -SHIP_LENGTH * 0.32 + 3.3); // step rail
 
+  // --- STAIRS up to the raised decks, so you can climb to the wheel and
+  // forecastle (0.4 risers — within the character's step height). Each tread is
+  // both a visible plank and a flat collider, collected for the physics list.
+  const stepColliders = [];
+  function stair(topY, z, hw) {
+    B.box(MAT.trim, hw * 2, 0.4, 0.84, 0, topY - 0.2, z);
+    stepColliders.push({ hx: hw, hy: 0.2, hz: 0.42, x: 0, y: topY - 0.2, z });
+  }
+  // up to the quarterdeck (2.4 -> 3.6), climbing aft
+  stair(DECK_Y + 0.4, -3.8, 1.6);
+  stair(DECK_Y + 0.8, -4.6, 1.6);
+  stair(DECK_Y + 1.2, -5.4, 1.6);
+  // up to the forecastle (2.4 -> 3.4), climbing forward
+  stair(DECK_Y + 0.4, 6.0, 1.4);
+  stair(DECK_Y + 0.8, 6.6, 1.4);
+
   // --- CAPSTAN (mid-deck) ---
   const capstanPos = new Vector3(0, DECK_Y, 4.5);
   B.cyl(MAT.trim, 0.55, 0.7, 1.1, 0, DECK_Y + 0.55, 4.5, 8);
@@ -386,6 +402,7 @@ export function createShip() {
     { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: SHIP_LENGTH * 0.46 },
     { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: -SHIP_LENGTH * 0.46 },
   ];
+  colliders.push(...stepColliders); // the deck stairs
 
   return {
     root, deckY: DECK_Y, length: SHIP_LENGTH, beam: SHIP_BEAM,

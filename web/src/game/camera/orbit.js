@@ -54,6 +54,9 @@ export function createOrbitCam(camera, dom, target = new Vector3(0, 1.5, 0)) {
     update,
     target,
     get yaw() { return yaw; },
+    get radius() { return radius; },
     setRadius(r) { radius = MathUtils.clamp(r, minR, maxR); },
+    setYaw(y) { yaw = y; },
+    setPitch(pp) { pitch = MathUtils.clamp(pp, minPitch, maxPitch); },
   };
 }

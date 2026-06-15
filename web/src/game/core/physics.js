@@ -55,7 +55,8 @@ export async function initPhysics(gravityY = -20) {
       RAPIER.ColliderDesc.capsule(halfHeight, radius), body,
     );
     const controller = world.createCharacterController(0.02);
-    controller.enableAutostep(0.6, 0.3, true);
+    // modest auto-step: climbs the deck stairs (0.4 risers) but not the rails
+    controller.enableAutostep(0.6, 0.25, true);
     controller.enableSnapToGround(0.5);
     controller.setApplyImpulsesToDynamicBodies(true);
     controller.setMaxSlopeClimbAngle((55 * Math.PI) / 180);

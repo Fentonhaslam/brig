@@ -10,17 +10,18 @@ import { Color, Vector3, MathUtils } from 'three';
 
 const DAY_LENGTH = 300; // seconds for a full sun-to-sun cycle
 
-// night / golden / day stops for each thing we recolour
+// night / golden / day stops for each thing we recolour. Night is lifted to a
+// moonlit blue (rather than near-black) so the deck stays readable after dark.
 const STOPS = {
-  sun:    [0x2a3656, 0xff7a3c, 0xfff0d0],
-  hemiSky:[0x223052, 0xc98a5a, 0xdfe6d2],
-  hemiGnd:[0x161a26, 0x4a3a2a, 0x55503a],
-  skyHor: [0x1a2440, 0xff9a5a, 0xf6c79a],
-  skyZen: [0x0a1126, 0x3a4a7a, 0x2c5d8f],
-  fog:    [0x0d1626, 0xca8a5a, 0xd7dcc8],
+  sun:    [0x3a4a6a, 0xff7a3c, 0xfff0d0],
+  hemiSky:[0x415585, 0xc98a5a, 0xdfe6d2],
+  hemiGnd:[0x2a3346, 0x4a3a2a, 0x55503a],
+  skyHor: [0x2c3a5c, 0xff9a5a, 0xf6c79a],
+  skyZen: [0x18244a, 0x3a4a7a, 0x2c5d8f],
+  fog:    [0x1c2a44, 0xca8a5a, 0xd7dcc8],
 };
 
-export function createDayNight({ sun, hemi, sky, water, scene, post, lantern }) {
+export function createDayNight({ renderer, sun, hemi, sky, water, scene, post, lantern }) {
   const cols = {};
   for (const k in STOPS) cols[k] = STOPS[k].map((h) => new Color(h));
   const sunDir = new Vector3();
@@ -51,10 +52,12 @@ export function createDayNight({ sun, hemi, sky, water, scene, post, lantern }) 
     sun.intensity = 0.1 + day * 2.1;
     sun.castShadow = h > 0.08;                // no shadows from a sub-horizon sun
 
-    // fill
+    // fill — keep a strong moonlit floor at night so you can still see the deck
     tri(hemi.color, cols.hemiSky, day);
     tri(hemi.groundColor, cols.hemiGnd, day);
-    hemi.intensity = 0.2 + day * 0.55;
+    hemi.intensity = 0.72 + day * 0.4;
+    // lift exposure after dark (moonlight), ease it back by day
+    if (renderer) renderer.toneMappingExposure = 1.02 + (1 - day) * 0.34;
 
     // sky
     tri(_a, cols.skyHor, day);
@@ -71,12 +74,17 @@ export function createDayNight({ sun, hemi, sky, water, scene, post, lantern }) 
     u.uSunColor.value.copy(sun.color);
     u.uSky.value.copy(_b).lerp(_a, 0.4);
 
-    // the payoff: lantern + bloom carry the scene as the light fails
+    // the payoff: lantern + bloom carry the scene as the light fails (bloom
+    // eased down a bit now the night ambient is brighter, so it won't blow out)
     lantern.intensity = 2 + (1 - day) * 9;
-    post.setBloom(0.3 + (1 - day) * 0.85);
+    post.setBloom(0.3 + (1 - day) * 0.5);
 
     return sunDir;
   }
 
-  return { update, sunDir, get dayAmount() { return MathUtils.smoothstep(sunDir.y, -0.16, 0.36); } };
+  return {
+    update, sunDir,
+    setPhase(ph) { phase = ph; }, // for testing: 0≈dawn, .25 noon, .5 dusk, .72 night
+    get dayAmount() { return MathUtils.smoothstep(sunDir.y, -0.16, 0.36); },
+  };
 }
