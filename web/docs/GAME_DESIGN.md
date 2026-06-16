@@ -222,8 +222,15 @@ arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
      so the quays meet whatever boat you sail. Verified: skiff berths + walks
      ashore level (feetY ~1.0) at BOTH Sevilla & Santo Domingo; nao unchanged
      (feetY ~3.4); no fall-through; zero errors.
-7. **Role/ownership** gate (admin-only nao; players build) — ⬜ next pass: block
-   taking the nao's helm for non-admins (dev allowlist/account role).
+7. **Role/ownership** gate (admin-only nao; players build) — ✅ DONE. Taking the
+   nao's helm (E) is gated behind an admin flag (localStorage 'brig:admin' / dev
+   setAdmin hook; account role later); non-admins get a diegetic "the Crown's
+   ship — build your own" hint. Players sail the skiff they build. Verified:
+   non-admin nao canHelm=false; admin + skiff-owner canHelm=true.
+
+**✅ PHASE 2 COMPLETE** — quests + gathering + shipwright + your own buildable,
+sailable skiff + the nao role gate. Next: Phase 3 (fishing, hull condition, the
+punishing crossing).
 5. **Materials + gathering** (timber/canvas/rope/pitch/iron).
 6. **Shipwright + the skiff** (recipe build, the new boat model + sailing feel).
 7. **Role/ownership** gate (admin-only nao; players build).

@@ -120,6 +120,12 @@ const ship = vesselKind === 'skiff' ? createSkiff() : createShip();
 scene.add(ship.root);
 water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
 
+// the grand nao is the Crown's — only admins/devs may take her helm. Ordinary
+// players sail the skiff they build. (Dev flag now; an account role later.)
+let isAdmin = false;
+try { isAdmin = localStorage.getItem('brig:admin') === '1'; } catch {}
+const canHelm = () => vesselKind === 'skiff' || isAdmin;
+
 // The world (Hispaniola ahead, Sevilla astern) lives under a group whose
 // transform is the INVERSE of the ship's world pose. The ship stays fixed at
 // the origin pointing north — so its deck is a clean static physics collider —
@@ -272,6 +278,7 @@ input.onClick((ray) => {
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE') return;
   if (mode === 'walk' && player.position.distanceTo(ship.helm) < 3.5) {
+    if (!canHelm()) { hint.textContent = '⚓ The Crown’s ship — you cannot take her helm. Build your own skiff at the Triana shipwright.'; return; }
     mode = 'helm'; moveTarget = null; player.setVisible(false); orbit.setRadius(CAM.helm);
   } else if (mode === 'helm') {
     mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
@@ -473,7 +480,8 @@ function updateWalk(dt) {
       hint.textContent = `Ashore at ${port} — press T to trade at the market · return to the helm to cast off`;
     }
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
-    hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
+    if (!canHelm()) hint.textContent = '⚓ The Crown’s ship — build your own skiff at the Triana shipwright to set sail';
+    else hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
   else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'WASD/click move · Space jump · Shift run · R guns · B bell';
 }
@@ -560,8 +568,9 @@ window.brig = {
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
   objective, intro, quests, gather,
-  vessel: vesselKind, get skiffOwned() { return skiffOwned; },
+  vessel: vesselKind, get skiffOwned() { return skiffOwned; }, get isAdmin() { return isAdmin; }, get canHelm() { return canHelm(); },
   setVessel(k) { try { localStorage.setItem('brig:vessel:' + _ident.key, k); } catch {} }, // dev: reload to apply
+  setAdmin(v) { isAdmin = !!v; try { localStorage.setItem('brig:admin', v ? '1' : '0'); } catch {} },
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the
