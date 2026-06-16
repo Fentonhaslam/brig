@@ -36,6 +36,7 @@ import { createMarket } from './systems/market.js';
 import { createPurse } from './ui/purse.js';
 import { createObjective } from './ui/objective.js';
 import { createIntro } from './systems/intro.js';
+import { createQuests } from './systems/quests.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -287,7 +288,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyF') return;
   if (inscribe.isOpen) { inscribe.hide(); return; }
   if (berthed && mode === 'walk' && activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
-  if (nearNpc && mode === 'walk') { dialogue.open(nearNpc); frameTalk(nearNpc); }
+  if (nearNpc && mode === 'walk') { dialogue.open(nearNpc); frameTalk(nearNpc); quests.notify('talk', nearNpc.name); }
 });
 
 // swing the camera in tight over the player's shoulder, looking at the NPC
@@ -497,9 +498,14 @@ function updateHelm(dt) {
     + `<span style="display:inline-block;transform:rotate(${windRotDeg.toFixed(0)}deg)">⬆</span> wind ${windPct}%</div>`;
 }
 
-// the objective HUD + the opening (name entry, cinematic, onboarding guide)
+// the objective HUD, the quest framework, and the opening (name entry + cinematic)
 const objective = createObjective();
-const intro = createIntro({ orbit, objective, sceneAt: designToScene });
+const quests = createQuests({
+  objective, inventory, sceneAt: designToScene,
+  getBerthedName: () => (activeHarbour ? activeHarbour.name : null),
+  persistKey: 'brig:quests:' + guestId,
+});
+const intro = createIntro({ orbit, onReady: () => quests.start('berth') });
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
@@ -518,15 +524,15 @@ window.brig = {
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
-  objective, intro,
+  objective, intro, quests,
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the
 // city, then take the helm and cast off when you're ready to cross
 berth(harbours.find((h) => h.name === 'Sevilla') || harbours[1]);
-// the opening: first visit gets name entry + a cinematic + the onboarding guide;
-// returning players walk straight in
-intro.maybeRun();
+// the opening: first visit gets name entry + a cinematic, then the spine quest
+// starts (via onReady); returning players skip in and we restore their quest HUD
+if (!intro.maybeRun()) quests.load();
 
 // --- loop ---
 let last = performance.now();
@@ -569,7 +575,7 @@ function frame(now) {
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
-  intro.update(player.position); // advance the onboarding objective as you reach each step
+  quests.update(dt, player.position); // advance reach/have quest triggers
 
   // the player's lantern lights the deck around them after dark
   torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);

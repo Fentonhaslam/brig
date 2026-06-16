@@ -193,7 +193,15 @@ Quests are **multiplayer-aware** (each player's own progress; shared world).
 arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
 
 ### Phase 2 — Progression systems
-4. **Quest framework** + the spine questline + first side-quests.
+4. **Quest framework** + the spine questline + first side-quests.  ◧ IN PROGRESS
+   - ✅ `systems/quests.js`: quests as step state machines with talk/reach/have/
+     flag triggers + rewards (coin/items), driving the objective HUD, persisted
+     per-player (localStorage; Supabase sync TODO). Intro now hands off to it.
+   - ✅ Spine **"A Berth of Your Own"** first steps wired end-to-end: talk
+     Harbourmaster → cross to Triana → reach the shipwright (+25 coin) → gather
+     materials (waits on inventory) → build (waits on a 'skiff-built' flag).
+     Verified: triggers fire, reward granted, progress survives reload.
+   - ⬜ Remaining: shipwright NPC + the gather/build steps going live; side-quests.
 5. **Materials + gathering** (timber/canvas/rope/pitch/iron).
 6. **Shipwright + the skiff** (recipe build, the new boat model + sailing feel).
 7. **Role/ownership** gate (admin-only nao; players build).

@@ -7,12 +7,11 @@
 
 import { setHandle } from '../player/identity.js';
 
-export function createIntro({ orbit, objective, sceneAt, onName }) {
+export function createIntro({ orbit, onReady, onName }) {
   const SEEN = 'brig:introSeen';
   let seen = false;
   try { seen = localStorage.getItem(SEEN) === '1'; } catch {}
   let active = false;          // true while the name card / cinematic hold control
-  let guide = null;            // { steps, i, pts }
 
   // --- letterbox bars + caption ---
   const mkBar = (top) => { const d = document.createElement('div'); d.style.cssText = `position:fixed;left:0;right:0;${top ? 'top' : 'bottom'}:0;height:0;background:#000;z-index:88;transition:height .7s ease;pointer-events:none`; document.body.appendChild(d); return d; };
@@ -54,19 +53,6 @@ export function createIntro({ orbit, objective, sceneAt, onName }) {
 
   function finishSeen() { try { localStorage.setItem(SEEN, '1'); } catch {} seen = true; }
 
-  // --- the onboarding guide: waypoints in Sevilla design coords, resolved to
-  // scene space once (we begin berthed at Sevilla) ---
-  const STEPS = [
-    { dx: 6, dz: 12, r: 6.5, title: 'Speak with the Harbourmaster', hint: 'He keeps the Sevilla quay — press F when you are close.' },
-    { dx: -38, dz: 18, r: 7.5, title: 'Cross the Puente de Barcas into Triana', hint: 'The shipwrights and sailors keep the far bank.' },
-    { dx: -60, dz: 44, r: 9, title: "Find the shipwright's slipway", hint: 'A skiff of your own begins on these stocks.' },
-  ];
-  function startGuide() {
-    const pts = STEPS.map((s) => { const p = sceneAt(s.dx, s.dz); return p ? { x: p.x, z: p.z } : null; });
-    guide = { i: 0, pts };
-    objective.set(STEPS[0].title, STEPS[0].hint);
-  }
-
   function runCinematic() {
     active = true;
     setBars('10vh');
@@ -86,7 +72,7 @@ export function createIntro({ orbit, objective, sceneAt, onName }) {
       else {
         say(''); setBars('0');
         active = false;
-        startGuide();
+        if (onReady) onReady();   // hand off to the quest system
       }
     };
     requestAnimationFrame(tick);
@@ -97,7 +83,7 @@ export function createIntro({ orbit, objective, sceneAt, onName }) {
     if (onName) onName(name);
     overlay.style.display = 'none';
     finishSeen();
-    if (skip) { active = false; setBars('0'); say(''); startGuide(); }
+    if (skip) { active = false; setBars('0'); say(''); if (onReady) onReady(); }
     else runCinematic();
   }
   beginBtn.addEventListener('click', () => begin(false));
@@ -113,17 +99,5 @@ export function createIntro({ orbit, objective, sceneAt, onName }) {
     return true;
   }
 
-  // called each frame with the player's scene position to advance the guide
-  function update(pos) {
-    if (!guide) return;
-    const step = STEPS[guide.i], pt = guide.pts[guide.i];
-    if (!pt) { guide = null; return; }
-    if (Math.hypot(pos.x - pt.x, pos.z - pt.z) < step.r) {
-      guide.i += 1;
-      if (guide.i < STEPS.length) objective.set(STEPS[guide.i].title, STEPS[guide.i].hint);
-      else { objective.set('Gather timber, canvas, rope & pitch for your skiff', 'Quests and gathering open up next — your voyage has begun.'); guide = null; }
-    }
-  }
-
-  return { maybeRun, update, get active() { return active; }, get seen() { return seen; } };
+  return { maybeRun, get active() { return active; }, get seen() { return seen; } };
 }
