@@ -104,6 +104,8 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
       let ok = true;
       for (const [k, n] of Object.entries(t.have)) if (inventory.count(k) < n) { ok = false; break; }
       if (ok) advance();
+    } else if (t.flag) {
+      if (state.flags[t.flag]) advance(); // flag may have been set before this step became current
     }
   }
 

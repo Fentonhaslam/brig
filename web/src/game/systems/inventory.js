@@ -18,6 +18,10 @@ const CATALOG = {
   cloth:   { name: 'Castilian Cloth', icon: '🧵' },
   tools:   { name: 'Iron Tools',      icon: '🔨' },
   timber:  { name: 'Timber',          icon: '🪵' },
+  canvas:  { name: 'Sailcloth',       icon: '⛵' },
+  rope:    { name: 'Hemp Rope',       icon: '🪢' },
+  pitch:   { name: 'Pitch',           icon: '🛢️' },
+  iron:    { name: 'Iron Fittings',   icon: '⚙️' },
   spice:   { name: 'Spice',           icon: '🌶️' },
   gold:    { name: 'Indies Gold',     icon: '✨' },
 };

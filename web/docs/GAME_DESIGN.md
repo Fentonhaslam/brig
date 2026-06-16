@@ -201,7 +201,16 @@ arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
      Harbourmaster → cross to Triana → reach the shipwright (+25 coin) → gather
      materials (waits on inventory) → build (waits on a 'skiff-built' flag).
      Verified: triggers fire, reward granted, progress survives reload.
-   - ⬜ Remaining: shipwright NPC + the gather/build steps going live; side-quests.
+   - ✅ Shipwright NPC (Maestro Ribera) at the Triana slipway + the gather/build
+     steps LIVE — the whole spine is now playable end-to-end (verified).
+   - ⬜ Remaining: side-quests (Casa de Contratación, friar, merchant, etc.).
+5. **Materials + gathering**  ✅ DONE — timber/canvas/rope/pitch/iron added to the
+   inventory catalog; `systems/gather.js` gives located G-to-harvest points (fell
+   timber at the campiña wood, cut canvas / lay rope at Triana chandlers, render
+   pitch at the quay boilers) with cooldown + pickup toasts, persisted.
+6. **Shipwright + the skiff**  ◧ build interaction DONE (lay the keel at the
+   slipway: consumes the recipe, sets 'skiff-built', completes the spine). ⬜
+   Remaining: the actual SKIFF vessel (model + its lighter/fragile sailing feel).
 5. **Materials + gathering** (timber/canvas/rope/pitch/iron).
 6. **Shipwright + the skiff** (recipe build, the new boat model + sailing feel).
 7. **Role/ownership** gate (admin-only nao; players build).

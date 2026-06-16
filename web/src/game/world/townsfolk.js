@@ -39,6 +39,19 @@ const TREES = {
       do: { text: 'Trade at the market, run errands for the merchants and friars, fish the river. Coin and goodwill both buy you closer to a hull of your own.', choices: [{ label: 'Good to know.', to: null }] },
     },
   },
+  'Maestro Ribera': {
+    start: 'start',
+    tree: {
+      start: { text: 'So the Harbourmaster sent you. Aye — I build the little boats, the skiffs that teach a man the sea before it kills him. Bring me the makings and I’ll lay your keel.', choices: [
+        { label: 'What do you need?', to: 'need' },
+        { label: 'Why not just sell me one?', to: 'sell' },
+        { label: 'I’ll be back.', to: null },
+      ] },
+      need: { text: 'Timber for the hull, sailcloth for the canvas, hemp for the rope, pitch to keep the sea out. Stack them on the slipway and lay the keel — then we build.', choices: [{ label: 'Where do I find it all?', to: 'where' }, { label: 'Right.', to: null }] },
+      where: { text: 'Timber from the wood past the gate. Canvas and rope from the Triana chandlers. Pitch from the boilers down on the quay. Honest work, all of it.', choices: [{ label: 'Thank you, maestro.', to: null }] },
+      sell: { text: 'A boat you didn’t build is a boat you don’t understand — and out on the Ocean Sea, that is how men drown. You’ll build this one.', choices: [{ label: 'Fair enough.', to: null }] },
+    },
+  },
   'Mercader Esquivel': {
     start: 'start',
     tree: {
@@ -95,6 +108,7 @@ const FOLK = {
       lines: ['Sardines, fresh up from the river! …no? You have the look of a man with salt still in his ears.', 'My Andrés sailed three years past. I keep a candle for him at the cathedral. The sea keeps its own counsel.'] },
     { name: 'Fray Bartolomé', title: 'Friar', role: 'friar', dx: -4, dz: 44, ry: 0.2 },
     { name: 'Don Lope', title: 'Hidalgo', role: 'hidalgo', dx: 6, dz: 58, ry: Math.PI },
+    { name: 'Maestro Ribera', title: 'Shipwright', role: 'carpenter', dx: -58, dz: 40, ry: -0.5, radius: 1.6 },
   ],
   'Santo Domingo': [
     { name: 'Colono Mateo', title: 'Settler', role: 'colonist', dx: -6, dz: 12, ry: 0.4,

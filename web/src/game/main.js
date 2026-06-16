@@ -37,6 +37,7 @@ import { createPurse } from './ui/purse.js';
 import { createObjective } from './ui/objective.js';
 import { createIntro } from './systems/intro.js';
 import { createQuests } from './systems/quests.js';
+import { createGather } from './systems/gather.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -506,6 +507,13 @@ const quests = createQuests({
   persistKey: 'brig:quests:' + guestId,
 });
 const intro = createIntro({ orbit, onReady: () => quests.start('berth') });
+// gathering + the shipwright's build (press G near a point ashore)
+const gather = createGather({
+  inventory, quests, sceneAt: designToScene, catalog: inventory.catalog,
+  getBerthedName: () => (activeHarbour ? activeHarbour.name : null),
+  getPlayerPos: () => player.position,
+  getActive: () => mode === 'walk' && !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
+});
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
@@ -524,7 +532,7 @@ window.brig = {
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
-  objective, intro, quests,
+  objective, intro, quests, gather,
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the
@@ -576,6 +584,7 @@ function frame(now) {
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
   quests.update(dt, player.position); // advance reach/have quest triggers
+  gather.update(dt);                   // gather-point prompts + cooldowns
 
   // the player's lantern lights the deck around them after dark
   torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);
