@@ -208,7 +208,13 @@ const market = createMarket({ inventory, getPort: () => (activeHarbour ? activeH
 // always-visible coin + profit-since-port readout
 const purse = createPurse(inventory);
 // enemy ships you can sink for loot (needs inventory + cannons)
-const combat = createCombat({ scene, inventory, cannons, getStorm: () => weather.storm, getBerthed: () => berthed });
+const combat = createCombat({
+  scene, physics, inventory, cannons, ship,
+  getStorm: () => weather.storm,
+  getBerthed: () => berthed,
+  // only in open ocean — well clear of Sevilla (the start) and Santo Domingo
+  getOpenWater: () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500,
+});
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
@@ -474,7 +480,7 @@ window.brig = {
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market,
-  spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; },
+  spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
