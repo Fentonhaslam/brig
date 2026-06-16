@@ -5,7 +5,7 @@
 // at the origin facing +z, so muzzles + shots are all in scene space.
 
 import { Mesh, SphereGeometry } from 'three';
-import { toonMaterial } from '../core/toon.js';
+import { pbrMaterial } from '../core/materials.js';
 
 let actx = null;
 function ctx() {
@@ -39,7 +39,7 @@ function clang() {
 
 export function createCannons(scene, physics, ship) {
   const balls = [];
-  const ballMat = toonMaterial(0x1b1b20);
+  const ballMat = pbrMaterial(0x1b1b20);
   const ballGeo = new SphereGeometry(0.32, 10, 8);
 
   function fire() {

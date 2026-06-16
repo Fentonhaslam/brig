@@ -7,14 +7,15 @@
 import {
   Group, Mesh, BoxGeometry, CylinderGeometry, PlaneGeometry, SphereGeometry, DoubleSide, Vector3,
 } from 'three';
-import { toonMaterial, withOutline } from '../core/toon.js';
+import { withOutline } from '../core/toon.js';
+import { pbrMaterial } from '../core/materials.js';
 import { woodGrain, weave } from '../core/textures.js';
 
 function buildEnemyShip() {
   const g = new Group();
-  const hullMat = toonMaterial(0x26242b, { map: woodGrain(2, 5) });
-  const trimMat = toonMaterial(0x3a2f28);
-  const sailMat = toonMaterial(0x47434f, { side: DoubleSide, map: weave(2, 2) });
+  const hullMat = pbrMaterial(0x26242b, { map: woodGrain(2, 5) });
+  const trimMat = pbrMaterial(0x3a2f28);
+  const sailMat = pbrMaterial(0x47434f, { side: DoubleSide, map: weave(2, 2) });
   const L = 30, B = 9, D = 4.2;
 
   const hg = new BoxGeometry(B, D, L, 2, 2, 6);
@@ -35,7 +36,7 @@ function buildEnemyShip() {
     const sail = new Mesh(new PlaneGeometry(sw, sh), sailMat); sail.position.set(0, 10, mz + 0.15); g.add(sail);
   }
   // black flag
-  const flag = new Mesh(new PlaneGeometry(2.2, 1.3), toonMaterial(0x121016, { side: DoubleSide }));
+  const flag = new Mesh(new PlaneGeometry(2.2, 1.3), pbrMaterial(0x121016, { side: DoubleSide }));
   flag.position.set(0.9, 17, 0); g.add(flag);
 
   g.scale.setScalar(1.25);
@@ -50,7 +51,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
   let flashV = 0;
   const _v = new Vector3();
   const ballGeo = new SphereGeometry(0.34, 8, 6);
-  const ballMat = toonMaterial(0x14131a);
+  const ballMat = pbrMaterial(0x14131a);
 
   // HUD: enemy health bar (top centre, under the helm HUD)
   const hud = document.createElement('div');

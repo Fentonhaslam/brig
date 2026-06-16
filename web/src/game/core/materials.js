@@ -23,6 +23,15 @@ const KIND = {
   none:   () => ({ tex: null,            roughness: 0.9,  bump: 0.0,  metal: 0.0 }),
 };
 
+// a general PBR material taking the same shape of opts toonMaterial did
+// (map/side/transparent/opacity/emissive/…) — for props converting off toon
+export function pbrMaterial(color, opts = {}) {
+  const { roughness = 0.85, metalness = 0, envMapIntensity = 0.5, ...rest } = opts;
+  const m = new MeshStandardMaterial({ color: new Color(color), roughness, metalness, ...rest });
+  m.envMapIntensity = envMapIntensity;
+  return m;
+}
+
 export function surfaceMaterial(hex, kind = 'none') {
   const k = (KIND[kind] || KIND.none)();
   const m = new MeshStandardMaterial({

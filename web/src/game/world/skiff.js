@@ -8,7 +8,8 @@
 import {
   Group, Mesh, BoxGeometry, CylinderGeometry, PlaneGeometry, Vector3, DoubleSide,
 } from 'three';
-import { toonMaterial, withOutline } from '../core/toon.js';
+import { withOutline } from '../core/toon.js';
+import { pbrMaterial } from '../core/materials.js';
 import { woodGrain, weave } from '../core/textures.js';
 
 const LEN = 9, BEAM = 3.2, DECK = 1.0;
@@ -18,10 +19,10 @@ export const SKIFF_PROFILE = { topSpeed: 30, turn: 1.1, windInfluence: 1.9, frag
 
 export function createSkiff() {
   const root = new Group();
-  const hullMat = toonMaterial(0x7a5230, { map: woodGrain(2, 4) });
-  const trimMat = toonMaterial(0x5e3c20);
-  const sailMat = toonMaterial(0xe8e0cc, { side: DoubleSide, map: weave(2, 2) });
-  const bannerMat = toonMaterial(0x9c3528, { side: DoubleSide });
+  const hullMat = pbrMaterial(0x7a5230, { map: woodGrain(2, 4) });
+  const trimMat = pbrMaterial(0x5e3c20);
+  const sailMat = pbrMaterial(0xe8e0cc, { side: DoubleSide, map: weave(2, 2) });
+  const bannerMat = pbrMaterial(0x9c3528, { side: DoubleSide });
 
   // --- hull: a box tapered to a point at bow + stern ---
   const hg = new BoxGeometry(BEAM, 1.5, LEN, 2, 1, 8);

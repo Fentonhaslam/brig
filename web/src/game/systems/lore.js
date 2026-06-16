@@ -9,7 +9,8 @@ import {
   Group, Mesh, CylinderGeometry, ConeGeometry, BoxGeometry,
   Sprite, SpriteMaterial, CanvasTexture, SRGBColorSpace,
 } from 'three';
-import { toonMaterial, withOutline } from '../core/toon.js';
+import { withOutline } from '../core/toon.js';
+import { pbrMaterial } from '../core/materials.js';
 import { listLore, addLore } from '../../net/lore.js';
 
 // founding inscriptions so the courtyard is never empty (offline / fresh DB)
@@ -20,9 +21,9 @@ const SEED = [
     body: 'Forty days from Sevilla, the lookout cried land. We had not lost a soul.' },
 ];
 
-const STONE = toonMaterial(0x8f897c);
-const STONE_LT = toonMaterial(0x9f998c);
-const PLAQUE = toonMaterial(0x6a5a3a);
+const STONE = pbrMaterial(0x8f897c);
+const STONE_LT = pbrMaterial(0x9f998c);
+const PLAQUE = pbrMaterial(0x6a5a3a);
 
 function labelSprite(text) {
   const cv = document.createElement('canvas');

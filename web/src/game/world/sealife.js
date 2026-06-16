@@ -10,7 +10,7 @@ import {
   Group, Mesh, SphereGeometry, ConeGeometry, BufferAttribute,
   Sprite, SpriteMaterial, CanvasTexture, MathUtils,
 } from 'three';
-import { toonMaterial } from '../core/toon.js';
+import { pbrMaterial } from '../core/materials.js';
 
 // A tapered, slightly arched body from a sphere: stretched along +z (the nose),
 // pinched toward the tail and the snout so it reads as a cetacean, not an egg.
@@ -45,9 +45,9 @@ export function createSeaLife(scene) {
   scene.add(group);
 
   // shared assets — built once, reused by every animal
-  const dolMat = toonMaterial(0x5b7488, { transparent: true, opacity: 0, depthWrite: false });
-  const dolBelly = toonMaterial(0xd7dde2, { transparent: true, opacity: 0, depthWrite: false });
-  const whaleMat = toonMaterial(0x37414f, { transparent: true, opacity: 0, depthWrite: false });
+  const dolMat = pbrMaterial(0x5b7488, { transparent: true, opacity: 0, depthWrite: false });
+  const dolBelly = pbrMaterial(0xd7dde2, { transparent: true, opacity: 0, depthWrite: false });
+  const whaleMat = pbrMaterial(0x37414f, { transparent: true, opacity: 0, depthWrite: false });
   const dolBody = bodyGeometry(2.2, 0.8);
   const whaleBody = bodyGeometry(7.0, 2.3);
   const finGeo = new ConeGeometry(0.42, 1.0, 5);

@@ -309,8 +309,15 @@ levers, in order: **lighting + post + materials**, not polygon count.
   billboards** that follow the camera + fade in for calm skies, and **dust motes**
   near the camera by day. All tied to dayNight (sun elevation/day amount) +
   weather (storm). Verified at dusk + midday, zero errors.
-- ⬜ Remaining: water reflections + shoreline/contact foam + better normals;
-  the straggler PBR cleanup (sealife/skiff/combat/cannons/lore).
+- ✅ **Straggler PBR cleanup**: sealife, skiff, enemy ships, cannonballs and lore
+  stones converted off toon (shared `pbrMaterial()` helper) — scene-wide now
+  **0 toon / all PBR**, verified with an enemy spawned + guns fired, zero errors.
+- ⬜ Optional future polish: water reflections + shoreline foam (deferred — the
+  custom water shader is risky to touch and the look is already strong).
+
+**✅ VISUAL FIDELITY OVERHAUL (sec.9) COMPLETE** — grounded-stylized end to end:
+AO + PBR + IBL + modular architecture + instanced detail + atmosphere, all PBR,
+performant, walkable. Back to gameplay (sec.7).
 
 ### Process change
 Stop hand-placing primitive boxes. Build the foundation + reusable instanced
