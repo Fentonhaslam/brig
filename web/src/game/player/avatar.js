@@ -11,17 +11,22 @@
 
 import {
   Group, Mesh, BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry,
-  CapsuleGeometry,
+  CapsuleGeometry, MeshStandardMaterial,
 } from 'three';
-import { toonMaterial, withOutline } from '../core/toon.js';
+import { withOutline } from '../core/toon.js';
 import { mottle } from '../core/textures.js';
 
 // cache materials by colour so a whole crew shares them (fewer GPU programs).
-// one shared mottle map gives cloth/skin/armour a little woven/worn texture.
+// PBR now (grounded with the world) — one shared mottle map gives cloth/skin/
+// armour a little woven/worn relief; lit by the sun + environment.
 const _mats = new Map();
 const _tex = mottle(1, 1);
 function mat(hex) {
-  if (!_mats.has(hex)) _mats.set(hex, toonMaterial(hex, { map: _tex }));
+  if (!_mats.has(hex)) {
+    const m = new MeshStandardMaterial({ color: hex, map: _tex, bumpMap: _tex, bumpScale: 0.015, roughness: 0.82, metalness: 0 });
+    m.envMapIntensity = 0.5;
+    _mats.set(hex, m);
+  }
   return _mats.get(hex);
 }
 

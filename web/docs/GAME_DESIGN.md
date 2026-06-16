@@ -273,8 +273,12 @@ levers, in order: **lighting + post + materials**, not polygon count.
   sailcloth, earth, water, metal). The world (islands.js) is migrated off flat
   toon onto these, keeping the merged-draw-call batching. Verified: 32 merged PBR
   surfaces; the city reads grounded under sun+env+AO+grade; zero errors.
-- ⬜ Remaining: convert the **ship + characters** to PBR; bake vertex-colour AO
-  into the static merges; rim/fresnel for silhouette readability.
+- ✅ **Ship + characters** converted to PBR (ship.js MAT + avatar.js shared mats
+  → MeshStandardMaterial w/ grain bump; refit recolour hooks intact). Whole core
+  frame now consistently grounded (scene-wide 529 PBR / 32 toon). Verified.
+- ⬜ Remaining (quick cleanup): the at-sea/conditional props still toon —
+  sealife, skiff, enemy ships, cannonballs, lore stones. Plus bake vertex-colour
+  AO into the static merges + rim/fresnel for silhouette.
 
 ### C. Detail kits + instancing (cheap, real detail)
 - ⬜ A modular **building kit**: beveled masses, **inset** windows/doors with

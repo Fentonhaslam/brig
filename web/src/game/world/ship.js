@@ -13,13 +13,26 @@
 // }
 
 import {
-  Group, Mesh, Vector3, Quaternion, DoubleSide,
+  Group, Mesh, Vector3, Quaternion, DoubleSide, MeshStandardMaterial,
   BoxGeometry, CylinderGeometry, PlaneGeometry, TorusGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { toonMaterial, withOutline } from '../core/toon.js';
+import { withOutline } from '../core/toon.js';
 import { woodGrain, weave } from '../core/textures.js';
+
+// a PBR ship surface — the procedural grain doubles as albedo map + bumpMap so
+// the planking/canvas reads grounded under the sun + environment + AO + grade
+function pbr(color, o = {}) {
+  const m = new MeshStandardMaterial({
+    color, roughness: o.roughness ?? 0.85, metalness: o.metalness ?? 0,
+    emissive: o.emissive ?? 0x000000, emissiveIntensity: o.emissiveIntensity ?? 1,
+    side: o.side,
+  });
+  if (o.map) { m.map = o.map; m.bumpMap = o.map; m.bumpScale = o.bump ?? 0.05; }
+  m.envMapIntensity = o.env ?? 0.5;
+  return m;
+}
 
 export const SHIP_LENGTH = 28;
 export const SHIP_BEAM = 8;
@@ -37,20 +50,20 @@ export const HULL_HALF_LEN = (SHIP_LENGTH / 2) * SHIP_SCALE; // bow/stern reach 
 const HATCH_HX = 1.7, HATCH_HZ = 2.6;   // open hatch half-extents (deck-local)
 const BELOW_TOP = DECK_Y - 2.3;         // the hold floor sits this far under the deck
 
-// --- toon palette ---
+// --- PBR palette (grounded stylized) ---
 const MAT = {
-  hull: toonMaterial(0x5a3a20, { map: woodGrain(2, 5) }),   // dark oiled wood, planked
-  deck: toonMaterial(0xb07c3e, { map: woodGrain(3, 8) }),   // sun-bleached planking
-  trim: toonMaterial(0x7a4d28, { map: woodGrain(2, 2) }),   // rails / beams
-  iron: toonMaterial(0x2b2b30),   // cannons, fittings
-  gold: toonMaterial(0xb98a2e),   // gilding (weathered brass — less neon)
-  red:  toonMaterial(0x9c3528),   // banners / trim stripe (deeper, more serious)
-  sail: toonMaterial(0xddcfae, { side: DoubleSide, map: weave(2, 2) }), // woven canvas
-  rope: toonMaterial(0x6a5a3a),   // rigging / cordage
-  cask: toonMaterial(0x6f4a28, { map: woodGrain(2, 2) }),   // barrels / crates
+  hull: pbr(0x5a3a20, { map: woodGrain(2, 5), roughness: 0.8, bump: 0.06 }),   // dark oiled wood, planked
+  deck: pbr(0xb07c3e, { map: woodGrain(3, 8), roughness: 0.82, bump: 0.05 }),  // sun-bleached planking
+  trim: pbr(0x7a4d28, { map: woodGrain(2, 2), roughness: 0.8, bump: 0.05 }),   // rails / beams
+  iron: pbr(0x2b2b30, { roughness: 0.5, metalness: 0.7 }),   // cannons, fittings
+  gold: pbr(0xb98a2e, { roughness: 0.34, metalness: 0.85, env: 1.0 }),   // gilding / weathered brass
+  red:  pbr(0x9c3528, { roughness: 0.9 }),   // banners / trim stripe
+  sail: pbr(0xddcfae, { side: DoubleSide, map: weave(2, 2), roughness: 1.0, bump: 0.02 }), // woven canvas
+  rope: pbr(0x6a5a3a, { roughness: 0.95 }),   // rigging / cordage
+  cask: pbr(0x6f4a28, { map: woodGrain(2, 2), roughness: 0.85, bump: 0.05 }),   // barrels / crates
   // lit glass: emissive so the post bloom blooms it into a warm lantern glow
-  glass: toonMaterial(0xf6cf7a, { emissive: 0xffb968, emissiveIntensity: 1.4 }),
-  window: toonMaterial(0xffca7a, { emissive: 0xffb060, emissiveIntensity: 1.0 }), // stern gallery
+  glass: pbr(0xf6cf7a, { emissive: 0xffb968, emissiveIntensity: 1.4, roughness: 0.3 }),
+  window: pbr(0xffca7a, { emissive: 0xffb060, emissiveIntensity: 1.0, roughness: 0.4 }), // stern gallery
 };
 
 // hull half-width at a length fraction (0 stern .. 1 bow): full midships,
