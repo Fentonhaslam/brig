@@ -15,6 +15,7 @@ const CATALOG = {
   wine:    { name: 'Wine',            icon: '🍷' },
   oil:     { name: 'Olive Oil',       icon: '🫒' },
   biscuit: { name: "Ship's Biscuit",  icon: '🍞' },
+  fish:    { name: 'Fresh Fish',      icon: '🐟' },
   cloth:   { name: 'Castilian Cloth', icon: '🧵' },
   tools:   { name: 'Iron Tools',      icon: '🔨' },
   timber:  { name: 'Timber',          icon: '🪵' },

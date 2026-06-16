@@ -236,7 +236,10 @@ punishing crossing).
 7. **Role/ownership** gate (admin-only nao; players build).
 
 ### Phase 3 — Fishing, the crossing, configs
-8. **Fishing** system (river + coast).
+8. **Fishing** system (river + coast).  ✅ DONE — `systems/fishing.js`: press C
+   near a riverside/coast spot (or over the rail at sea) to cast → a bite → C to
+   land a fish into the persisted inventory; prompt strip + catch toast. Verified
+   cast→bite→land at sea + the Triana riverbank, zero errors.
 9. **Vessel condition/damage** + repair.
 10. **The crossing** — punishing roguelike danger (pirates/whales/weather), loss
     rules, difficulty config tiers.

@@ -40,6 +40,7 @@ import { createObjective } from './ui/objective.js';
 import { createIntro } from './systems/intro.js';
 import { createQuests } from './systems/quests.js';
 import { createGather } from './systems/gather.js';
+import { createFishing } from './systems/fishing.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -549,6 +550,14 @@ const gather = createGather({
   getPlayerPos: () => player.position,
   getActive: () => mode === 'walk' && !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
 });
+// fishing — cast/bite/land at a riverside/coast spot or over the rail at sea
+const fishing = createFishing({
+  inventory, quests, sceneAt: designToScene, catalog: inventory.catalog,
+  getBerthedName: () => (activeHarbour ? activeHarbour.name : null),
+  getPlayerPos: () => player.position,
+  getAtSea: () => !berthed,
+  getActive: () => !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
+});
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
@@ -567,7 +576,7 @@ window.brig = {
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
-  objective, intro, quests, gather,
+  objective, intro, quests, gather, fishing,
   vessel: vesselKind, get skiffOwned() { return skiffOwned; }, get isAdmin() { return isAdmin; }, get canHelm() { return canHelm(); },
   setVessel(k) { try { localStorage.setItem('brig:vessel:' + _ident.key, k); } catch {} }, // dev: reload to apply
   setAdmin(v) { isAdmin = !!v; try { localStorage.setItem('brig:admin', v ? '1' : '0'); } catch {} },
@@ -623,6 +632,7 @@ function frame(now) {
   else updateHelm(dt);
   quests.update(dt, player.position); // advance reach/have quest triggers
   gather.update(dt);                   // gather-point prompts + cooldowns
+  fishing.update(dt);                  // cast/bite/land
   if (!skiffOwned && quests.flags['skiff-built']) { // record the skiff you built
     skiffOwned = true; try { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); } catch {}
   }
