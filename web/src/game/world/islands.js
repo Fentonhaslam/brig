@@ -117,15 +117,11 @@ function buildSevilla() {
   const B = makeBuilder();
   const D = 0x59607a; // city stone — readable up close, hazes to a silhouette far off
 
-  // the grand skyline, set SOUTH (behind the walkable plaza you arrive at)
-  B.box(D, 120, 12, 8, 0, 6, -52);
-  for (let i = 0; i < 9; i++) B.box(D, 9, 12 + (i % 3) * 5, 9, -50 + i * 12, 9, -60);
-  B.cyl(D, 7, 8, 34, -52, 17, -44, 12);     // Torre del Oro
-  B.cyl(D, 4.5, 5, 14, -52, 41, -44, 12);
-  B.box(D, 42, 46, 18, 24, 23, -62);        // cathedral mass
-  B.box(D, 12, 80, 12, 40, 40, -56);        // Giralda shaft
-  B.box(D, 8, 18, 8, 40, 88, -56);          // belfry
-  B.cone(D, 5, 12, 40, 102, -56, 6);        // crown
+  // distant rooftops hazing into the sky beyond the city walls, for depth
+  // (the real landmarks — Torre del Oro, Cathedral, Giralda — are walkable now)
+  for (let i = 0; i < 18; i++) {
+    B.box(D, 6 + (i % 3) * 2, 7 + (i % 4) * 4, 6, -58 + i * 7, 6, -60 - (i % 3) * 7);
+  }
 
   const harbour = buildHarbour(B, {
     local: SEVILLA_HARBOUR_LOCAL, worldOrigin: SEVILLA, dir: -1, kind: 'city', approachYaw: Math.PI, name: 'Sevilla',
@@ -174,27 +170,55 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.rbox(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8)); }
     B.box(C.cream, 0.35, 4, 0.35, ...at(0, 11, 31));
     B.box(C.red, 2.6, 1.6, 0.18, ...at(1.3, 11.8, 31));
-  } else { // 'city' — a walkable plaza with flanking houses + a cathedral facade
-    for (const sx of [-1, 1]) {
-      solid(sx * 8.5, 3.0, 16, 3, 2.6, 4, C.wall);
-      B.cone(C.roof, 4.6, 3.2, ...at(sx * 8.5, 7.6, 16), 4);
-      solid(sx * 9, 3.0, 28, 3, 2.6, 3.5, C.wall);
-      B.cone(C.roof, 4.4, 3.0, ...at(sx * 9, 7.4, 28), 4);
-    }
-    B.cyl(C.stone, 1.4, 1.6, 1.2, ...at(0, 3.0, 13), 8);   // a plaza well/cross
-    B.box(C.cream, 0.4, 3.2, 0.4, ...at(0, 5.4, 13));
-    B.box(C.cream, 1.8, 0.4, 0.4, ...at(0, 6.0, 13));
-    const cy = 6.0;                                         // cathedral facade
-    solid(0, cy, 42, 11, 5.0, 0.7, C.wall);
-    solid(-11, cy, 35, 0.7, 5.0, 7, C.wall);
-    solid(11, cy, 35, 0.7, 5.0, 7, C.wall);
-    solid(-6, cy, 28, 4, 5.0, 0.7, C.wall);
-    solid(6, cy, 28, 4, 5.0, 0.7, C.wall);
-    B.box(C.stone, 16, 1.6, 1.6, ...at(0, 11.4, 28));
-    B.box(C.roof, 24, 1.2, 15, ...at(0, 11.8, 36));
-    B.box(C.stone, 5, 22, 5, ...at(-13, 11, 44));          // a bell tower
-    B.cone(C.roof, 3.5, 5, ...at(-13, 24, 44), 4);
-    door = { dx: 0, dy: 2.4, dz: 28 };
+  } else { // 'city' — a walkable district of 1519 Sevilla on the Guadalquivir
+    const G = 2.4; // ground/deck level (pre-YLIFT)
+    // cobbled ground from the quay back into the city (the streets you walk)
+    solid(0, 1.78, 36, 30, 0.6, 37, C.stone);
+
+    // a terracotta house (walls collide; roof is decorative)
+    const house = (cx, cz, w, h, d) => {
+      solid(cx, G + h / 2, cz, w / 2, h / 2, d / 2, C.wall);
+      B.cone(C.roof, w * 0.62, h * 0.5, ...at(cx, G + h + h * 0.18, cz), 4);
+    };
+    // blocks of houses down both sides — central avenue + side streets stay clear
+    for (const cz of [12, 23, 36, 48]) { house(-23, cz, 9, 5 + (cz % 3), 7); house(23, cz, 9, 5 + ((cz + 2) % 3), 7); }
+    for (const cz of [16, 30, 44]) { house(-13, cz, 7, 5, 6); house(13, cz, 7, 6, 6); }
+
+    // Torre del Oro on the waterfront (the dodecagonal river watchtower)
+    B.cyl(C.stone, 3.2, 3.6, 18, ...at(-25, G + 9, 7), 12);
+    B.cyl(C.stone, 2.4, 2.8, 6, ...at(-25, G + 21, 7), 12);
+    B.box(C.cream, 0.3, 3, 0.3, ...at(-25, G + 25.5, 7));
+    colliders.push({ hx: 3.6, hy: 12, hz: 3.6, dx: -25, dy: G + 12 + YLIFT, dz: 7 * dir });
+
+    // the great Cathedral + La Giralda — the landmark on the skyline
+    const cz0 = 52;
+    solid(0, G + 9, cz0, 13, 9, 11, C.wall);          // nave mass
+    B.box(C.roof, 28, 2.2, 24, ...at(0, G + 19, cz0));
+    B.box(C.stone, 7, 40, 7, ...at(13, G + 20, cz0 - 4));   // Giralda shaft
+    B.box(C.stone, 5, 10, 5, ...at(13, G + 45, cz0 - 4));   // belfry
+    B.cone(C.roof, 3.6, 6, ...at(13, G + 53, cz0 - 4), 4);
+    B.box(C.cream, 0.35, 3.5, 0.35, ...at(13, G + 57, cz0 - 4)); // weather-vane
+    colliders.push({ hx: 3.5, hy: 22, hz: 3.5, dx: 13, dy: G + 20 + YLIFT, dz: (cz0 - 4) * dir });
+
+    // the Alcázar — a walled palace to the east, with corner towers
+    solid(27, G + 3.5, 44, 0.8, 3.5, 9, C.wall);
+    solid(27, G + 3.5, 62, 0.8, 3.5, 9, C.wall);
+    solid(22, G + 3.5, 67, 6, 3.5, 0.8, C.wall);
+    for (const [tx, tz] of [[27, 36], [27, 70], [34, 53]]) B.cyl(C.stone, 1.8, 2.2, 11, ...at(tx, G + 5.5, tz), 8);
+
+    // the outer city wall + a central gate, merlons along the top
+    const wz = 72;
+    solid(-17, G + 4, wz, 13, 4, 0.9, C.stone);
+    solid(17, G + 4, wz, 13, 4, 0.9, C.stone);
+    B.box(C.stone, 10, 2, 1.8, ...at(0, G + 9, wz)); // gate arch
+    for (let i = -29; i <= 29; i += 3.6) B.rbox(C.stone, 1.1, 1.3, 1.1, ...at(i, G + 8.3, wz));
+
+    // a plaza cross + market stall in the square before the cathedral
+    B.cyl(C.stone, 1.6, 1.9, 0.8, ...at(0, G + 0.4, 32), 8);
+    B.box(C.cream, 0.4, 3.2, 0.4, ...at(0, G + 2.4, 32));
+    B.box(C.cream, 1.6, 0.4, 0.4, ...at(0, G + 3.4, 32));
+
+    door = { dx: 0, dy: 2.4, dz: cz0 - 14 };
   }
 
   // shared: quayside clutter + lamp posts
