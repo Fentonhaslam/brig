@@ -19,6 +19,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { withOutline } from '../core/toon.js';
 import { surfaceMaterial } from '../core/materials.js';
+import { makeKit } from './kit.js';
 import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
 
 // per-colour bucket builder -> one merged mesh per material
@@ -162,11 +163,10 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     colliders.push({ hx, hy, hz, dx, dy: dy + YLIFT, dz: dz * dir });
   };
   const G = 2.4; // ground/deck level (pre-YLIFT), shared by the land branches
-  // a terracotta house (walls collide; roof is decorative)
-  const house = (cx, cz, w, h, d) => {
-    solid(cx, G + h / 2, cz, w / 2, h / 2, d / 2, C.wall);
-    B.cone(C.roof, w * 0.62, h * 0.5, ...at(cx, G + h + h * 0.18, cz), 4);
-  };
+  // detailed townhouses from the modular kit (inset windows/shutters/sills, eave,
+  // hipped/gabled tiled roof, chimney) — same single wall collider as before, so
+  // the walkable streets line up exactly
+  const { house } = makeKit({ B, at, solid, colliders, C, G, dir, YLIFT });
 
   // shared: quay deck + pilings + gangway with rails
   solid(0, 1.8, 22, 12, 0.6, 22, C.wood);

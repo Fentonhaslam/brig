@@ -281,6 +281,17 @@ levers, in order: **lighting + post + materials**, not polygon count.
   AO into the static merges + rim/fresnel for silhouette.
 
 ### C. Detail kits + instancing (cheap, real detail)
+- ✅ **Modular building kit** (`world/kit.js`): replaces box+cone with detailed
+  townhouses — rounded plaster wall on a plinth, **inset windows** with cream
+  frames + timber shutters + sills (ground + upper storey), recessed framed
+  doors, eave/cornice overhang, hipped/gabled **terracotta roofs** with a ridge,
+  chimneys. Binds to the merge builder (still few draw calls) and pushes the SAME
+  single wall collider, so the walkable streets line up exactly. All towns
+  (Sevilla/Triana/Sanlúcar/cortijo) re-skinned through it. Verified: streets +
+  ashore stay walkable (feetY, no fall-through); the town reads architectural in
+  morning light (screenshot); zero errors.
+- ⬜ Remaining: the InstancedMesh detail layer (foliage/grass with wind, town
+  crowd, scattered barrels/crates, cobble variation) + LOD. (old plan below)
 - ⬜ A modular **building kit**: beveled masses, **inset** windows/doors with
   frames + shutters, eaves, sills, varied **tiled roofs**, chimneys, balconies —
   replacing box+cone. Parameterised so towns vary.
