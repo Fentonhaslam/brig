@@ -31,6 +31,7 @@ import { createCannons } from './systems/cannons.js';
 import { createSpray } from './systems/spray.js';
 import { createRefit } from './systems/refit.js';
 import { createMarket } from './systems/market.js';
+import { createPurse } from './ui/purse.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -203,6 +204,8 @@ const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
 const refit = createRefit({ ship, key: guestId });
 // market — buy/sell cargo at the active port (prices differ between ports)
 const market = createMarket({ inventory, getPort: () => (activeHarbour ? activeHarbour.name : null) });
+// always-visible coin + profit-since-port readout
+const purse = createPurse(inventory);
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
@@ -337,6 +340,7 @@ function berth(h) {
   if (bowBody) { physics.world.removeRigidBody(bowBody.body); bowBody = null; }
   mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
   player.teleport(0, ship.deckY + 1.6, ship.length * 0.4); // up by the bow / gangway
+  purse.setMark(); // profit readout resets each time you make port
   ship.setSails(0.12);
 }
 
@@ -509,6 +513,7 @@ function frame(now) {
   crew.update(t, dt);
   peers.update(dt);
   cannons.update(dt);
+  purse.update(dt);
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
