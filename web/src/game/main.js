@@ -17,6 +17,7 @@ import { createOrbitCam } from './camera/orbit.js';
 import { createSky } from './world/sky.js';
 import { createWater } from './world/water.js';
 import { createShip } from './world/ship.js';
+import { createSkiff } from './world/skiff.js';
 import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
 import { createWeather } from './world/weather.js';
@@ -118,8 +119,19 @@ function syncWorld() {
 }
 syncWorld();
 
-// --- the ship, riding at the origin ---
-const ship = createShip();
+// --- the vessel, riding at the origin ---
+// which boat you sail: the great nao (default / admin) or your own little skiff.
+// 'brig:vessel:<key>' is set only by the dev hook for now; the player's *owned*
+// skiff (brig:skiffOwned) doesn't auto-replace the nao until the harbour heights
+// are calibrated per-vessel + the role gate lands (next pass).
+const _ident = getIdentity();
+let vesselKind = 'nao';
+let skiffOwned = false;
+try {
+  if (localStorage.getItem('brig:vessel:' + _ident.key) === 'skiff') vesselKind = 'skiff';
+  skiffOwned = localStorage.getItem('brig:skiffOwned:' + _ident.key) === '1';
+} catch {}
+const ship = vesselKind === 'skiff' ? createSkiff() : createShip();
 scene.add(ship.root);
 water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
 
@@ -184,8 +196,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyB') cannons.ringBell();
 });
 
-// the ship's company (named crew at their stations)
-const crew = createCrew(scene, ship);
+// the ship's company (named crew at their stations); a skiff sails solo
+const crew = createCrew(scene, ship, { solo: vesselKind === 'skiff' });
 // townsfolk ashore — spawned when you berth, cleared when you cast off
 const townsfolk = createTownsfolk(scene);
 
@@ -316,7 +328,11 @@ window.addEventListener('keydown', (e) => {
 
 // --- sailing state ---
 const nav = { speed: 0, heading: 0 }; // speed 0..1, heading radians
-const SAIL_SPEED = 44; // faster, so the ocean-spanning crossing isn't a slog
+const SAIL_SPEED = 44; // the nao: heavy, fast top end so the crossing isn't a slog
+// per-vessel sailing feel — the skiff is nimbler but slower + more wind-tossed
+const VESSEL = vesselKind === 'skiff'
+  ? { speed: 30, turn: 1.05, wind: 1.9 }
+  : { speed: SAIL_SPEED, turn: 0.7, wind: 1.0 };
 
 const UP = new Vector3(0, 1, 0);
 const fwd = new Vector3();
@@ -384,8 +400,10 @@ function castOff() {
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
   townsfolk.clear();
-  const c = ship.colliders[bowIdx];
-  bowBody = physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z); // restore bow rail
+  if (bowIdx >= 0 && !bowBody) { // restore the bow rail removed at berth (the nao has one; the skiff may not)
+    const c = ship.colliders[bowIdx];
+    bowBody = physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z);
+  }
 }
 
 function updateWalk(dt) {
@@ -467,19 +485,19 @@ function updateHelm(dt) {
     }
   }
   nav.speed = MathUtils.clamp(nav.speed + ax.z * dt * 0.5, 0, 1);
-  nav.heading += -ax.x * dt * 0.7;                          // steering sets a target heading…
+  nav.heading += -ax.x * dt * VESSEL.turn;                  // steering sets a target heading…
   // wind: a crosswind nudges the head, and you make more way with the wind
-  // astern than beating into it — but gently, so the helm stays in command
+  // astern than beating into it — the skiff feels it far more than the nao
   const wind = weather.wind, windDir = weather.windDir;
   const rel = Math.atan2(Math.sin(windDir - shipYaw), Math.cos(windDir - shipYaw)); // -PI..PI off the bow
-  nav.heading += Math.sin(rel) * wind * 0.18 * dt;          // subtle weather-helm
+  nav.heading += Math.sin(rel) * wind * 0.18 * VESSEL.wind * dt; // weather-helm
   shipYaw = MathUtils.damp(shipYaw, nav.heading, 2.4, dt);  // …the hull eases onto it (no snap)
   ship.setSails(0.18 + 0.82 * nav.speed);                   // canvas fills with way
-  ship.wheel.rotation.y += -ax.x * dt * 2.2;                // spin the wheel as you steer
+  ship.wheel.rotation.y += -ax.x * dt * 2.2;                // spin the wheel/tiller as you steer
 
-  const windAid = 1 + Math.cos(rel) * wind * 0.3;           // tail-wind boosts, head-wind slows
-  shipPos.x += Math.sin(shipYaw) * nav.speed * SAIL_SPEED * windAid * dt;
-  shipPos.z += Math.cos(shipYaw) * nav.speed * SAIL_SPEED * windAid * dt;
+  const windAid = 1 + Math.cos(rel) * wind * 0.3 * VESSEL.wind; // tail-wind boosts, head-wind slows
+  shipPos.x += Math.sin(shipYaw) * nav.speed * VESSEL.speed * windAid * dt;
+  shipPos.z += Math.cos(shipYaw) * nav.speed * VESSEL.speed * windAid * dt;
   syncWorld();
 
   // camera sits behind the ship looking forward over the bow
@@ -533,6 +551,8 @@ window.brig = {
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
   objective, intro, quests, gather,
+  vessel: vesselKind, get skiffOwned() { return skiffOwned; },
+  setVessel(k) { try { localStorage.setItem('brig:vessel:' + _ident.key, k); } catch {} }, // dev: reload to apply
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the
@@ -585,6 +605,9 @@ function frame(now) {
   else updateHelm(dt);
   quests.update(dt, player.position); // advance reach/have quest triggers
   gather.update(dt);                   // gather-point prompts + cooldowns
+  if (!skiffOwned && quests.flags['skiff-built']) { // record the skiff you built
+    skiffOwned = true; try { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); } catch {}
+  }
 
   // the player's lantern lights the deck around them after dark
   torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);

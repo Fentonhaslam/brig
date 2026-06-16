@@ -208,9 +208,18 @@ arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
    inventory catalog; `systems/gather.js` gives located G-to-harvest points (fell
    timber at the campiña wood, cut canvas / lay rope at Triana chandlers, render
    pitch at the quay boilers) with cooldown + pickup toasts, persisted.
-6. **Shipwright + the skiff**  ◧ build interaction DONE (lay the keel at the
-   slipway: consumes the recipe, sets 'skiff-built', completes the spine). ⬜
-   Remaining: the actual SKIFF vessel (model + its lighter/fragile sailing feel).
+6. **Shipwright + the skiff**  ◧ build + the SKIFF vessel DONE; full swap-in next.
+   - ✅ Lay the keel at the slipway (consumes the recipe, sets 'skiff-built').
+   - ✅ `world/skiff.js` — a small single-mast toon boat with the SAME interface
+     as the nao (sails/wheel/helm/colliders/update), a lighter+nimbler+fragile
+     sailing profile (SKIFF_PROFILE), and solo crew. Vessel is selected at load
+     (default nao; dev `setVessel('skiff')`); helm now reads a per-vessel feel
+     (top speed / turn / wind). Building persists skiff ownership. Verified:
+     nao default intact (len 39, 10 crew); skiff loads solo (len 9), casts off.
+   - ⬜ Next: calibrate harbour quay heights per-vessel so you can berth/walk
+     ashore from the skiff, make the owned skiff the player's actual vessel, and
+     the admin-only nao ROLE GATE.
+7. **Role/ownership** gate (admin-only nao; players build) — ⬜ next pass.
 5. **Materials + gathering** (timber/canvas/rope/pitch/iron).
 6. **Shipwright + the skiff** (recipe build, the new boat model + sailing feel).
 7. **Role/ownership** gate (admin-only nao; players build).

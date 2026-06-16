@@ -68,13 +68,14 @@ const TREES = {
   },
 };
 
-export function createCrew(scene, ship) {
+export function createCrew(scene, ship, opts = {}) {
   const group = new Group();
   scene.add(group);
   const D = ship.deckY;
 
   // station: [x, y, z, facingY], role, name, title, lines
-  const STATIONS = [
+  // (a solo skiff carries no company)
+  const STATIONS = opts.solo ? [] : [
     { p: [1.4, D + 1.2, -8.6], ry: 0.2, role: 'captain', name: 'Maestre Alvarado', title: 'Ship’s Master',
       lines: ['We make for Hispaniola. Hold this heading and we raise Santo Domingo by the forenoon watch.'] },
     { p: [0, D + 1.2, -7.6], ry: 0, role: 'sailor', name: 'Helmsman Brito', title: 'At the Helm',
