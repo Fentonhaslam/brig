@@ -304,8 +304,13 @@ levers, in order: **lighting + post + materials**, not polygon count.
 - ⬜ LOD + DPR cap + frustum culling so fidelity stays performant.
 
 ### D. Atmosphere + water
-- ⬜ Height/exponential fog, dawn/dusk light shafts, richer layered sky, dust
-  motes; water reflections + shoreline foam.
+- ✅ **Atmosphere** (in ambiance.js): dawn/dusk **sun shafts** (a broad warm
+  additive glow that peaks when the sun is low, fades in storm), drifting **cloud
+  billboards** that follow the camera + fade in for calm skies, and **dust motes**
+  near the camera by day. All tied to dayNight (sun elevation/day amount) +
+  weather (storm). Verified at dusk + midday, zero errors.
+- ⬜ Remaining: water reflections + shoreline/contact foam + better normals;
+  the straggler PBR cleanup (sealife/skiff/combat/cannons/lore).
 
 ### Process change
 Stop hand-placing primitive boxes. Build the foundation + reusable instanced

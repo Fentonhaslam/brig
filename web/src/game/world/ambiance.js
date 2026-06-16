@@ -5,6 +5,7 @@
 import {
   Group, Mesh, BufferGeometry, BufferAttribute, MeshBasicMaterial, DoubleSide,
   Sprite, SpriteMaterial, CanvasTexture, Vector3,
+  Points, PointsMaterial, AdditiveBlending, Float32BufferAttribute,
 } from 'three';
 
 function gullGeometry() {
@@ -28,6 +29,19 @@ function discTexture() {
   return new CanvasTexture(c);
 }
 
+// a soft puffy cloud — a few overlapping radial blobs
+function cloudTexture() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 10; i++) {
+    const cx = 18 + Math.random() * 92, cy = 26 + Math.random() * 16, r = 12 + Math.random() * 22;
+    const g = x.createRadialGradient(cx, cy, 1, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill();
+  }
+  return new CanvasTexture(c);
+}
+
 export function createAmbiance(scene) {
   // --- gulls ---
   const gullGroup = new Group();
@@ -45,6 +59,26 @@ export function createAmbiance(scene) {
   disc.scale.set(90, 90, 1);
   disc.renderOrder = -1; // behind the world, with the sky
   scene.add(disc);
+
+  // --- sun shafts: a broad warm glow at the sun, peaking at dawn/dusk ---
+  const sunGlow = new Sprite(new SpriteMaterial({ map: discTexture(), transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending, color: 0xffce8c, opacity: 0 }));
+  sunGlow.scale.set(900, 900, 1); sunGlow.renderOrder = -1; scene.add(sunGlow);
+
+  // --- soft cloud billboards drifting across the sky ---
+  const cloudTex = cloudTexture();
+  const clouds = [];
+  for (let i = 0; i < 7; i++) {
+    const s = new Sprite(new SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, opacity: 0, color: 0xfdf6ec }));
+    s.userData = { a: Math.random() * 6.28, r: 700 + Math.random() * 520, h: 220 + Math.random() * 180, sp: 0.004 + Math.random() * 0.006, sc: 260 + Math.random() * 240 };
+    s.renderOrder = -1; scene.add(s); clouds.push(s);
+  }
+
+  // --- drifting dust motes near the camera ---
+  const DUST = 90; const dpos = new Float32Array(DUST * 3);
+  for (let i = 0; i < DUST; i++) { dpos[i * 3] = (Math.random() - 0.5) * 60; dpos[i * 3 + 1] = Math.random() * 22; dpos[i * 3 + 2] = (Math.random() - 0.5) * 60; }
+  const dustGeo = new BufferGeometry(); dustGeo.setAttribute('position', new Float32BufferAttribute(dpos, 3));
+  const dust = new Points(dustGeo, new PointsMaterial({ size: 0.12, color: 0xffe9c4, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending }));
+  scene.add(dust);
 
   const _p = new Vector3();
 
@@ -68,6 +102,28 @@ export function createAmbiance(scene) {
     disc.material.color.set(day > 0.45 ? 0xfff0cf : 0xc2cce6);
     disc.scale.setScalar(day > 0.45 ? 95 : 62);
     disc.material.opacity = 0.6 + day * 0.35;
+
+    // sun shafts peak when the sun is low (dawn/dusk), fade out in storm
+    const lowSun = Math.max(0, 1 - Math.max(0, sunDir.y) * 2.2);
+    sunGlow.position.copy(_p);
+    sunGlow.material.color.set(day > 0.4 ? 0xffce8c : 0xbcd0ff);
+    sunGlow.material.opacity = lowSun * Math.max(0, day - 0.05) * (1 - storm) * 0.6;
+
+    // clouds drift slowly, follow the camera, fade in for calmer skies
+    const cloudWant = (1 - storm * 0.5) * (0.3 + day * 0.45);
+    for (const s of clouds) {
+      const u = s.userData; u.a += u.sp * dt;
+      s.position.set(camPos.x + Math.cos(u.a) * u.r, u.h, camPos.z + Math.sin(u.a) * u.r);
+      s.scale.set(u.sc, u.sc * 0.5, 1);
+      s.material.opacity += (cloudWant - s.material.opacity) * Math.min(1, dt * 0.6);
+    }
+
+    // dust motes drift up near the camera, daylight only
+    dust.position.set(camPos.x, 0, camPos.z);
+    const dp = dustGeo.attributes.position;
+    for (let i = 0; i < dp.count; i++) { let y = dp.getY(i) + dt * 0.3; if (y > 22) y -= 22; dp.setY(i, y); }
+    dp.needsUpdate = true;
+    dust.material.opacity = Math.max(0, day - 0.2) * (1 - storm) * 0.45;
   }
 
   return { update };
