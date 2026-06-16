@@ -41,6 +41,7 @@ import { createIntro } from './systems/intro.js';
 import { createQuests } from './systems/quests.js';
 import { createGather } from './systems/gather.js';
 import { createFishing } from './systems/fishing.js';
+import { createHull } from './systems/hull.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -246,6 +247,9 @@ const refit = createRefit({ ship, key: guestId });
 const market = createMarket({ inventory, getPort: () => (activeHarbour ? activeHarbour.name : null) });
 // always-visible coin + profit-since-port readout
 const purse = createPurse(inventory);
+// vessel hull condition (0-100): storms + pirate hits wear it; repaired with
+// timber+pitch; at 0 you founder (full loss rule lands with difficulty next)
+const hull = createHull({ persistKey: 'brig:hull:' + _ident.key, onFounder: () => founder() });
 // enemy ships you can sink for loot (needs inventory + cannons)
 const combat = createCombat({
   scene, physics, inventory, cannons, ship,
@@ -253,7 +257,13 @@ const combat = createCombat({
   getBerthed: () => berthed,
   // only in open ocean — well clear of Sevilla (the start) and Santo Domingo
   getOpenWater: () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500,
+  onHit: () => hull.damage(12), // a pirate ball that lands gouges the hull
 });
+// a pirate ball that lands also gouges the hull (wired above via onHit)
+function founder() {
+  // basic for now — warn loudly; the full roguelike loss + difficulty lands next pass
+  objective.set('⚓ Your hull is failing!', 'Make port and repair with timber + pitch, or you will founder on the crossing.');
+}
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
@@ -545,7 +555,7 @@ const quests = createQuests({
 const intro = createIntro({ orbit, onReady: () => quests.start('berth') });
 // gathering + the shipwright's build (press G near a point ashore)
 const gather = createGather({
-  inventory, quests, sceneAt: designToScene, catalog: inventory.catalog,
+  inventory, quests, sceneAt: designToScene, catalog: inventory.catalog, hull,
   getBerthedName: () => (activeHarbour ? activeHarbour.name : null),
   getPlayerPos: () => player.position,
   getActive: () => mode === 'walk' && !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
@@ -577,6 +587,7 @@ window.brig = {
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
   objective, intro, quests, gather, fishing,
+  get hull() { return hull.hull; }, damageHull: (n) => hull.damage(n), repairHull: (n) => hull.repair(n ?? 30),
   vessel: vesselKind, get skiffOwned() { return skiffOwned; }, get isAdmin() { return isAdmin; }, get canHelm() { return canHelm(); },
   setVessel(k) { try { localStorage.setItem('brig:vessel:' + _ident.key, k); } catch {} }, // dev: reload to apply
   setAdmin(v) { isAdmin = !!v; try { localStorage.setItem('brig:admin', v ? '1' : '0'); } catch {} },
@@ -633,6 +644,7 @@ function frame(now) {
   quests.update(dt, player.position); // advance reach/have quest triggers
   gather.update(dt);                   // gather-point prompts + cooldowns
   fishing.update(dt);                  // cast/bite/land
+  hull.update(dt, { atSea: !berthed, storm: weather.storm }); // hull wears in storms at sea
   if (!skiffOwned && quests.flags['skiff-built']) { // record the skiff you built
     skiffOwned = true; try { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); } catch {}
   }

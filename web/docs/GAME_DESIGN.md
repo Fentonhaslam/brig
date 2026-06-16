@@ -240,7 +240,11 @@ punishing crossing).
    near a riverside/coast spot (or over the rail at sea) to cast → a bite → C to
    land a fish into the persisted inventory; prompt strip + catch toast. Verified
    cast→bite→land at sea + the Triana riverbank, zero errors.
-9. **Vessel condition/damage** + repair.
+9. **Vessel condition/damage** + repair.  ✅ DONE — `systems/hull.js`: a 0-100
+   hull with a HUD bar; storms at sea erode it, pirate hits gouge it (combat
+   onHit -12), repaired with timber+pitch at the shipwright's slipway (G) or via
+   window.brig.repairHull; persisted (brig:hull). At 0 it fires onFounder.
+   Verified: storm erosion, damage/repair, persistence, founder warning.
 10. **The crossing** — punishing roguelike danger (pirates/whales/weather), loss
     rules, difficulty config tiers.
 11. **Polish + QA pass** across the whole journey.

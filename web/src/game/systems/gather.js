@@ -9,6 +9,8 @@
 
 // the skiff recipe — must match the spine quest's 'have' step
 export const SKIFF_RECIPE = { timber: 8, canvas: 3, rope: 4, pitch: 2 };
+// patching the hull at the slipway costs less
+export const REPAIR_RECIPE = { timber: 2, pitch: 1 };
 
 // gather + build points, in Sevilla-region design coords (Triana + campiña are
 // part of the Sevilla harbour build)
@@ -23,7 +25,7 @@ const POINTS = {
   ],
 };
 
-export function createGather({ inventory, quests, sceneAt, getBerthedName, getPlayerPos, getActive, catalog }) {
+export function createGather({ inventory, quests, sceneAt, getBerthedName, getPlayerPos, getActive, catalog, hull }) {
   // prompt (just above the main hint) + a pickup toast
   const prompt = document.createElement('div');
   prompt.style.cssText = 'position:fixed;left:50%;bottom:58px;transform:translateX(-50%);z-index:51;display:none;'
@@ -53,8 +55,22 @@ export function createGather({ inventory, quests, sceneAt, getBerthedName, getPl
     for (const [k, n] of Object.entries(SKIFF_RECIPE)) { const have = inventory.count(k); if (have < n) m.push(`${(catalog[k] || {}).name || k} ${have}/${n}`); }
     return m;
   }
+  function lacks(recipe) {
+    const m = [];
+    for (const [k, n] of Object.entries(recipe)) { const have = inventory.count(k); if (have < n) m.push(`${(catalog[k] || {}).name || k} ${have}/${n}`); }
+    return m;
+  }
   function build() {
-    if (quests && quests.flags && quests.flags['skiff-built']) { say('⚓ Your skiff is already on the stocks.'); return; }
+    const built = quests && quests.flags && quests.flags['skiff-built'];
+    if (built) { // already have a skiff — the slipway repairs it instead
+      if (hull && hull.hull < 100) {
+        const need = lacks(REPAIR_RECIPE);
+        if (need.length) { say('Repairs need: ' + need.join(' · ')); return; }
+        for (const [k, n] of Object.entries(REPAIR_RECIPE)) inventory.take(k, n);
+        hull.repair(30); say(`⚒ Hull patched — ${Math.round(hull.hull)}%`);
+      } else say('⚓ Your skiff is sound.');
+      return;
+    }
     const m = missing();
     if (m.length) { say('Need: ' + m.join(' · ')); return; }
     for (const [k, n] of Object.entries(SKIFF_RECIPE)) inventory.take(k, n);
@@ -88,8 +104,9 @@ export function createGather({ inventory, quests, sceneAt, getBerthedName, getPl
     }
     if (near) {
       if (near.build) {
-        const m = missing();
-        prompt.textContent = m.length ? `Shipwright — needs ${m.join(' · ')}` : '⚒ Press G to lay your skiff’s keel';
+        const built = quests && quests.flags && quests.flags['skiff-built'];
+        if (built) prompt.textContent = (hull && hull.hull < 100) ? '⚒ Press G to repair the hull (timber×2, pitch×1)' : 'The shipwright’s slipway';
+        else { const m = missing(); prompt.textContent = m.length ? `Shipwright — needs ${m.join(' · ')}` : '⚒ Press G to lay your skiff’s keel'; }
       } else {
         const onCd = (cds.get(near) || 0) > 0;
         prompt.textContent = onCd ? '…' : `Press G to ${near.verb}`;

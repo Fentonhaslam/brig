@@ -43,7 +43,7 @@ function buildEnemyShip() {
   return g;
 }
 
-export function createCombat({ scene, physics, inventory, cannons, ship, getStorm, getBerthed, getOpenWater }) {
+export function createCombat({ scene, physics, inventory, cannons, ship, getStorm, getBerthed, getOpenWater, onHit }) {
   let enemy = null;
   let spawnTimer = 25;
   let playerHp = 5; const maxHp = 5;
@@ -100,6 +100,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
 
   function hitPlayer() {
     playerHp -= 1; flashV = 1;
+    if (onHit) onHit(); // a cannonball that lands also gouges the vessel hull
     if (playerHp <= 0) {
       const goods = ['cloth', 'tools', 'wine', 'oil', 'spice', 'gold', 'timber', 'biscuit'].filter((g) => inventory.count(g) > 0);
       if (goods.length) { const g = goods[(Math.random() * goods.length) | 0]; inventory.take(g, Math.max(1, Math.ceil(inventory.count(g) * 0.3))); }
@@ -132,7 +133,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
     if (enemy || playerHp < maxHp) {
       const hp = Math.max(0, playerHp) / maxHp;
       hullHud.style.display = 'block';
-      hullHud.innerHTML = '⚓ Your hull'
+      hullHud.innerHTML = '⚔ Boarding'
         + `<div style="margin-top:5px;height:6px;width:150px;background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden">`
         + `<div style="height:100%;width:${(hp * 100).toFixed(0)}%;background:linear-gradient(90deg,#2e7d4f,#7ad0a0)"></div></div>`;
     } else hullHud.style.display = 'none';
