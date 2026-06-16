@@ -54,6 +54,7 @@ const C = {
   wood: 0x6a4a2c, stone: 0xb9ad8c, wall: 0xcabf9e, roof: 0x8a4a2e,
   red: 0x9c3528, cream: 0xe8dcc0,
   earth: 0x9c7c4e, field: 0x8fa44a, olive: 0x5b7a3a, hedge: 0x4f6b34,
+  river: 0x2f6d86,
 };
 
 // detail map per palette colour — stonework on masonry, grain on timber, a
@@ -180,10 +181,12 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     // cobbled ground from the quay back into the city (the streets you walk)
     solid(0, 1.78, 36, 30, 0.6, 37, C.stone);
 
-    // --- walkable Andalusian earth: a broad ground under the city and inland
-    // into the campiña (countryside) beyond the gate. Sits just below the cobbles
-    // (autostep handles the lip) so the whole plot is walkable, not just the quay.
-    solid(0, 1.68, 56, 56, 0.6, 54, C.earth);
+    // --- walkable ground. Sevilla sits on the EAST bank of the Guadalquivir;
+    // the ground is notched on the west for the river, while the campiña inland
+    // is full-width (the river bends away west, off-map). Sits just below the
+    // cobbles (autostep handles the lip) so the whole plot is walkable.
+    solid(13, 1.68, 38, 43, 0.6, 42, C.earth);   // east bank: dx -30..56, dz -4..80
+    solid(0, 1.68, 96, 56, 0.6, 18, C.earth);    // campiña inland: dx -56..56, dz 78..114
     // grass field patches + a dirt road running inland from the gate
     for (const [fx, fz] of [[-34, 92], [33, 96], [-22, 104], [24, 86]]) B.box(C.field, 22, 0.22, 17, ...at(fx, G + 0.12, fz));
     B.box(C.earth, 7.5, 0.26, 40, ...at(0, G + 0.14, 92));
@@ -194,11 +197,11 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
       colliders.push({ hx: 0.6, hy: 2.4, hz: 0.6, dx: ox, dy: G + 2.4 + YLIFT, dz: oz * dir });
     };
     for (const [ox, oz] of [[-16, 84], [-23, 97], [-12, 105], [18, 82], [27, 95], [15, 106]]) olive(ox, oz);
-    // bounding hedges (far + sides) so the countryside reads as enclosed for now;
-    // the quay side stays open so you can return to the ship
-    solid(0, G + 1.4, 110, 56, 1.4, 0.9, C.hedge);
-    solid(-56, G + 1.4, 56, 0.9, 1.4, 54, C.hedge);
-    solid(56, G + 1.4, 56, 0.9, 1.4, 54, C.hedge);
+    // bounding hedges — far edge, east side, and the campiña's west edge (the
+    // river/Triana bound the rest of the west; the quay side stays open)
+    solid(0, G + 1.4, 113, 56, 1.4, 0.9, C.hedge);
+    solid(56, G + 1.4, 55, 0.9, 1.4, 59, C.hedge);
+    solid(-56, G + 1.4, 96, 0.9, 1.4, 18, C.hedge);
 
     // a terracotta house (walls collide; roof is decorative)
     const house = (cx, cz, w, h, d) => {
@@ -208,6 +211,34 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     // blocks of houses down both sides — central avenue + side streets stay clear
     for (const cz of [12, 23, 36, 48]) { house(-23, cz, 9, 5 + (cz % 3), 7); house(23, cz, 9, 5 + ((cz + 2) % 3), 7); }
     for (const cz of [16, 30, 44]) { house(-13, cz, 7, 5, 6); house(13, cz, 7, 6, 6); }
+
+    // --- the Guadalquivir + Triana (the shipwrights' quarter, west bank) ---
+    // sunken river channel (visual; the banks are walled so you cross by bridge)
+    B.box(C.river, 16, 0.5, 98, ...at(-38, G - 0.8, 34));
+    // stone embankments down both banks, with a gap at the bridge (dz 15..22)
+    for (const bx of [-31, -45]) { solid(bx, G + 0.6, 1.5, 0.7, 0.9, 13.5, C.stone); solid(bx, G + 0.6, 51, 0.7, 0.9, 29, C.stone); }
+    // the Puente de Barcas — a pontoon bridge you walk across into Triana
+    solid(-38, 1.68, 18.5, 8, 0.6, 3.5, C.wood);
+    for (const rz of [15, 22]) B.box(C.wood, 16, 0.6, 0.25, ...at(-38, G + 0.9, rz));
+    for (let i = 0; i < 4; i++) B.cyl(C.wood, 0.7, 0.7, 1.4, ...at(-45 + i * 4.5, G - 0.5, 18.5), 6);
+    // Triana ground (west bank) + a cobbled quay strip along the river
+    solid(-66, 1.68, 31, 20, 0.6, 41, C.earth);
+    solid(-50, 1.78, 31, 4, 0.6, 41, C.stone);
+    // Triana bounds (west + the two ends)
+    solid(-86, G + 1.4, 31, 0.9, 1.4, 41, C.hedge);
+    for (const nz of [-10, 72]) solid(-66, G + 1.4, nz, 20, 1.4, 0.9, C.hedge);
+    // sailors' houses
+    house(-72, 50, 8, 5, 7); house(-60, 58, 8, 6, 7); house(-76, 20, 8, 5, 7); house(-64, 12, 7, 5, 6);
+    // the Castillo de San Jorge by the bridgehead (Triana's old castle)
+    solid(-55, G + 4, 30, 5, 4, 6, C.stone);
+    for (const [tx, tz] of [[-60, 25], [-60, 35], [-50, 25], [-50, 35]]) B.cyl(C.stone, 1.5, 1.8, 10, ...at(tx, G + 5, tz), 8);
+    // the shipwright's slipway + a half-built hull — your future skiff begins here
+    solid(-60, G + 0.2, 44, 6, 0.3, 7, C.wood);
+    B.box(C.wood, 1.1, 0.9, 11, ...at(-60, G + 1.3, 44));            // keel
+    for (let i = -4; i <= 4; i += 2) B.box(C.wood, 4.4, 0.3, 0.4, ...at(-60, G + 2.0, 44 + i)); // ribs
+    colliders.push({ hx: 2.4, hy: 1.2, hz: 6, dx: -60, dy: G + 1.4 + YLIFT, dz: 44 * dir });
+    // a moored rowboat at the Triana quay
+    B.box(C.wood, 2.2, 0.8, 5, ...at(-49, G - 0.2, 55));
 
     // Torre del Oro on the waterfront (the dodecagonal river watchtower)
     B.cyl(C.stone, 3.2, 3.6, 18, ...at(-25, G + 9, 7), 12);

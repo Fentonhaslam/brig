@@ -501,6 +501,14 @@ window.brig = {
     this.setShip(h.worldPoint.x - Math.sin(h.approachYaw) * 38, h.worldPoint.z - Math.cos(h.approachYaw) * 38, h.approachYaw);
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
+  // map a berthed harbour's design coords -> scene space (QA: place/check things
+  // against the baked land); dy defaults to the walkable ground surface
+  sceneAt(dx, dz, dy) {
+    if (!activeHarbour) return null;
+    const h = activeHarbour;
+    const v = new Vector3(h.worldPoint.x + dx, h.worldPoint.y + (dy ?? h.walkY), h.worldPoint.z + dz * h.dir).applyMatrix4(worldGroup.matrix);
+    return { x: v.x, y: v.y, z: v.z };
+  },
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the

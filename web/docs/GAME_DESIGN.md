@@ -166,10 +166,15 @@ Quests are **multiplayer-aware** (each player's own progress; shared world).
 
 ### Phase 1 — Foundation (world you can actually be in)
 1. **Walkable land** — terrain collider system + bake region ground/obstacles in
-   LAND mode. *(unblocks everything; the "help!")*  ← start here
+   LAND mode. *(unblocks everything; the "help!")*  ✅ DONE
 2. **Region build-out** — extend the map: Guadalquivir + banks, **Triana** across
    the river, the **campiña**, and **Sanlúcar** at the mouth. Detailed toon art,
    colliders, lamp/props, ambient life. Walkable end to end.
+   - ✅ Guadalquivir + embankments + Puente de Barcas bridge + **Triana** (west
+     bank: cobbled quay, sailors' houses, Castillo de San Jorge, the shipwright's
+     slipway with a half-built hull) + campiña teaser. All walkable, verified.
+   - ⬜ Remaining: flesh out the **campiña** (cortijo/farm, woodland for timber,
+     a chapel, roads) and build **Sanlúcar de Barrameda** at the river mouth.
 3. **Interactive intro/onboarding** — cinematic arrival, name entry, mentor +
    objective UI, guided first steps. "You are entering the world."
 
