@@ -172,9 +172,12 @@ Quests are **multiplayer-aware** (each player's own progress; shared world).
    colliders, lamp/props, ambient life. Walkable end to end.
    - ✅ Guadalquivir + embankments + Puente de Barcas bridge + **Triana** (west
      bank: cobbled quay, sailors' houses, Castillo de San Jorge, the shipwright's
-     slipway with a half-built hull) + campiña teaser. All walkable, verified.
-   - ⬜ Remaining: flesh out the **campiña** (cortijo/farm, woodland for timber,
-     a chapel, roads) and build **Sanlúcar de Barrameda** at the river mouth.
+     slipway with a half-built hull). All walkable, verified.
+   - ✅ **Campiña** fleshed out: a woodland timber stand (solid trunks), the
+     cortijo farmstead (farmhouse, barn, yard walls, well, sheep), a roadside
+     chapel with bell-gable, a cart + haystacks. All walkable, verified.
+   - ⬜ Remaining: build **Sanlúcar de Barrameda** at the river mouth (its own
+     walkable district: shipwright yard, fishing quay, houses, departure quay).
 3. **Interactive intro/onboarding** — cinematic arrival, name entry, mentor +
    objective UI, guided first steps. "You are entering the world."
 

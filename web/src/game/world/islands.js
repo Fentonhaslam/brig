@@ -240,6 +240,38 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     // a moored rowboat at the Triana quay
     B.box(C.wood, 2.2, 0.8, 5, ...at(-49, G - 0.2, 55));
 
+    // --- the campiña fleshed out: a timber wood, a cortijo (farm), a chapel ---
+    // a stand of woodland on the west of the road — the timber you'll fell later;
+    // trunks are solid so you move between them
+    const tree = (tx, tz, h) => {
+      B.cyl(C.trunk, 0.7, 1.0, h, ...at(tx, G + h / 2, tz), 6);
+      B.cone(C.leaf, 4.6, h * 0.95, ...at(tx, G + h + h * 0.3, tz), 7);
+      colliders.push({ hx: 0.9, hy: h / 2, hz: 0.9, dx: tx, dy: G + h / 2 + YLIFT, dz: tz * dir });
+    };
+    for (const [tx, tz, h] of [[-46, 86, 8], [-39, 92, 9], [-50, 99, 7], [-42, 105, 8], [-33, 101, 9], [-48, 109, 7], [-36, 110, 8]]) tree(tx, tz, h);
+
+    // the cortijo (a walled Andalusian farmstead) east of the road
+    house(46, 92, 11, 6, 9);                                  // farmhouse
+    solid(46, G + 2.5, 105, 4, 2.5, 3, C.wall);               // barn
+    B.cone(C.roof, 6, 3.2, ...at(46, G + 6.2, 105), 4);
+    solid(33, G + 1, 98, 0.5, 1, 12, C.wall);                 // west yard wall (gate gap to the south)
+    solid(45, G + 1, 110, 12, 1, 0.5, C.wall);                // north yard wall
+    B.cyl(C.stone, 1.1, 1.3, 1.6, ...at(40, G + 0.8, 100), 8); // well
+    for (const [sx, sz] of [[37, 96], [41, 99], [35, 102]]) B.ico(C.cream, 0.95, 0, 1.35, 0.9, 1, ...at(sx, G + 0.95, sz)); // sheep
+
+    // a roadside chapel (ermita) with a bell-gable + cross
+    solid(11, G + 2.5, 103, 3, 2.5, 4, C.wall);
+    B.box(C.roof, 7.6, 1.2, 9.6, ...at(11, G + 5.4, 103));
+    B.box(C.wall, 4, 2.6, 0.5, ...at(11, G + 6.2, 99));        // bell-gable
+    B.box(C.cream, 0.3, 1.9, 0.3, ...at(11, G + 8.1, 99));     // cross upright
+    B.box(C.cream, 1.1, 0.3, 0.3, ...at(11, G + 7.7, 99));     // cross arm
+    colliders.push({ hx: 3, hy: 2.5, hz: 4, dx: 11, dy: G + 2.5 + YLIFT, dz: 103 * dir });
+
+    // a cart on the road + a couple of haystacks
+    B.box(C.wood, 3, 1, 2, ...at(3, G + 1.2, 86));
+    for (const wz of [-1, 1]) B.cyl(C.wood, 0.8, 0.8, 0.3, ...at(1.4, G + 0.8, 86 + wz * 0.9), 8);
+    for (const [hx, hz] of [[-7, 100], [6, 109]]) B.ico(C.field, 2.2, 0, 1, 0.85, 1, ...at(hx, G + 1.4, hz));
+
     // Torre del Oro on the waterfront (the dodecagonal river watchtower)
     B.cyl(C.stone, 3.2, 3.6, 18, ...at(-25, G + 9, 7), 12);
     B.cyl(C.stone, 2.4, 2.8, 6, ...at(-25, G + 21, 7), 12);
