@@ -30,6 +30,7 @@ import { createAccount } from './systems/account.js';
 import { createCannons } from './systems/cannons.js';
 import { createSpray } from './systems/spray.js';
 import { createRefit } from './systems/refit.js';
+import { createMarket } from './systems/market.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -200,6 +201,8 @@ const lore = createLore({ group: built.harbours[0].group, anchor: built.harbours
 const inscribe = createInscribePanel((t, b) => lore.inscribe(t, b));
 // refit — name + recolour the ship (applied live + persisted)
 const refit = createRefit({ ship, key: guestId });
+// market — buy/sell cargo at the active port (prices differ between ports)
+const market = createMarket({ inventory, getPort: () => (activeHarbour ? activeHarbour.name : null) });
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
@@ -399,7 +402,7 @@ function updateWalk(dt) {
     if (activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) {
       hint.textContent = `The Keep of ${port} — press F to inscribe a memory-stone`;
     } else {
-      hint.textContent = `Ashore at ${port} — explore · return to the helm to cast off`;
+      hint.textContent = `Ashore at ${port} — press T to trade at the market · return to the helm to cast off`;
     }
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
     hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
@@ -463,7 +466,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather,
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market,
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
