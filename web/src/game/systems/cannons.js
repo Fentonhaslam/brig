@@ -72,5 +72,5 @@ export function createCannons(scene, physics, ship) {
     }
   }
 
-  return { fire, ringBell: clang, update, get count() { return balls.length; } };
+  return { fire, ringBell: clang, update, get count() { return balls.length; }, get balls() { return balls; } };
 }

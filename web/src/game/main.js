@@ -29,6 +29,7 @@ import { createLore, createInscribePanel } from './systems/lore.js';
 import { createAccount } from './systems/account.js';
 import { createCannons } from './systems/cannons.js';
 import { createSpray } from './systems/spray.js';
+import { createCombat } from './systems/combat.js';
 import { createRefit } from './systems/refit.js';
 import { createMarket } from './systems/market.js';
 import { createPurse } from './ui/purse.js';
@@ -206,6 +207,8 @@ const refit = createRefit({ ship, key: guestId });
 const market = createMarket({ inventory, getPort: () => (activeHarbour ? activeHarbour.name : null) });
 // always-visible coin + profit-since-port readout
 const purse = createPurse(inventory);
+// enemy ships you can sink for loot (needs inventory + cannons)
+const combat = createCombat({ scene, inventory, cannons, getStorm: () => weather.storm, getBerthed: () => berthed });
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
 account.onSignIn(({ session, handle: h, userId }) => {
@@ -471,6 +474,7 @@ window.brig = {
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market,
+  spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; },
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
@@ -513,6 +517,7 @@ function frame(now) {
   crew.update(t, dt);
   peers.update(dt);
   cannons.update(dt);
+  combat.update(dt, t);
   purse.update(dt);
 
   if (mode === 'walk') updateWalk(dt);
