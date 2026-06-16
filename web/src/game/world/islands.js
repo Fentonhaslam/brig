@@ -20,6 +20,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { withOutline } from '../core/toon.js';
 import { surfaceMaterial } from '../core/materials.js';
 import { makeKit } from './kit.js';
+import { addGrass, addBarrels, addCrates } from './scatter.js';
 import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
 
 // per-colour bucket builder -> one merged mesh per material
@@ -131,6 +132,23 @@ function buildSevilla() {
   harbour.group = g;
 
   B.commit(g, [C.wood, C.wall, C.stone]);
+
+  // instanced ground detail — a swaying grass field across the campiña + clutter
+  // on the quays (group-local space: x=local.x+dx, y=walkY, z=local.z+dz*dir)
+  const loc = (dx, dz) => ({ x: SEVILLA_HARBOUR_LOCAL.x + dx, y: harbour.walkY, z: SEVILLA_HARBOUR_LOCAL.z + dz * -1 });
+  const grass = [];
+  for (let i = 0; i < 320; i++) {
+    const dx = -52 + Math.random() * 104, dz = 78 + Math.random() * 34;
+    grass.push({ ...loc(dx, dz), ry: Math.random() * 6.28, s: 0.7 + Math.random() * 0.7, sy: 0.8 + Math.random() * 0.7 });
+  }
+  addGrass(g, grass);
+  const barrels = [[-9, 8], [-8, 12], [9, 9], [8, 14], [-50, 24], [-49, 30], [-51, 40], [16, 9], [18, 15]]
+    .map(([bx, bz]) => ({ ...loc(bx, bz), ry: Math.random() * 6.28, s: 0.9 + Math.random() * 0.3 }));
+  addBarrels(g, barrels);
+  const crates = [[-7, 16], [7, 18], [-48, 46], [14, 21], [-6, 17]]
+    .map(([cx, cz]) => ({ ...loc(cx, cz), ry: Math.random() * 6.28, s: 0.8 + Math.random() * 0.3 }));
+  addCrates(g, crates);
+
   g.position.copy(SEVILLA);
   return { group: g, harbour };
 }

@@ -290,8 +290,12 @@ levers, in order: **lighting + post + materials**, not polygon count.
   (Sevilla/Triana/Sanlúcar/cortijo) re-skinned through it. Verified: streets +
   ashore stay walkable (feetY, no fall-through); the town reads architectural in
   morning light (screenshot); zero errors.
-- ⬜ Remaining: the InstancedMesh detail layer (foliage/grass with wind, town
-  crowd, scattered barrels/crates, cobble variation) + LOD. (old plan below)
+- ✅ **Instanced detail** (`world/scatter.js`): a swaying grass field across the
+  campiña (one InstancedMesh, shader sway via onBeforeCompile + uTime, no
+  per-frame matrix work) + scattered barrels & crates along the quays. Walkable
+  (no colliders on detail), verified, zero errors.
+- ⬜ Remaining: a town crowd + more foliage variety; LOD; the straggler PBR
+  cleanup (sealife/skiff/combat/cannons/lore). (old plan below)
 - ⬜ A modular **building kit**: beveled masses, **inset** windows/doors with
   frames + shutters, eaves, sills, varied **tiled roofs**, chimneys, balconies —
   replacing box+cone. Parameterised so towns vary.
