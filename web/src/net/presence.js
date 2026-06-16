@@ -1,6 +1,13 @@
 // Live co-presence over Supabase Realtime. Each client tracks its own state
-// (handle + position + heading + mode) on a shared "world" channel; everyone
-// receives the others' state and renders their avatars.
+// (handle + world position + heading + mode) on a shared "world" channel;
+// everyone receives the others' state and renders their avatars.
+//
+// Positions are broadcast in ABSOLUTE WORLD space (see peers.js): every client
+// shares one coherent map, so two players in the same port see each other in
+// the right place. If the channel drops we re-join with a short backoff — and
+// if presence never delivers other players, we surface a clear hint (the usual
+// cause is Realtime being disabled on the project, or the API key not being
+// accepted for Realtime).
 
 import { supabase, online } from './supabase.js';
 
@@ -11,9 +18,11 @@ export function joinWorld({ handle, userId }) {
     return { update() {}, onPeers(cb) { onChange = cb; }, leave() {}, peers };
   }
 
-  const channel = supabase.channel('world', {
-    config: { presence: { key: userId } },
-  });
+  let channel = null;
+  let left = false;
+  let retries = 0;
+  let lastState = { handle, x: 0, y: 2.4, z: 0, heading: 0, mode: 'aboard' };
+  let warnedPresence = false;
 
   function syncPeers() {
     const state = channel.presenceState();
@@ -26,26 +35,43 @@ export function joinWorld({ handle, userId }) {
     onChange(peers);
   }
 
-  channel
-    .on('presence', { event: 'sync' }, syncPeers)
-    .on('presence', { event: 'join' }, syncPeers)
-    .on('presence', { event: 'leave' }, syncPeers)
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({ handle, x: 0, z: 0, heading: 0, mode: 'aboard', t: 0 });
-      }
-    });
+  function join() {
+    channel = supabase.channel('world', { config: { presence: { key: userId } } });
+    channel
+      .on('presence', { event: 'sync' }, syncPeers)
+      .on('presence', { event: 'join' }, syncPeers)
+      .on('presence', { event: 'leave' }, syncPeers)
+      .subscribe(async (status, err) => {
+        if (status === 'SUBSCRIBED') {
+          retries = 0;
+          await channel.track(lastState);
+        } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !left) {
+          // re-join with a capped backoff; the socket itself auto-reconnects,
+          // this re-establishes the channel + presence on top of it
+          if (!warnedPresence && err) {
+            console.warn('[brig] world channel error — multiplayer presence may be off:', err);
+          }
+          if (retries < 6) {
+            const delay = Math.min(1000 * 2 ** retries, 15000);
+            retries += 1;
+            setTimeout(() => { if (!left) { try { supabase.removeChannel(channel); } catch {} join(); } }, delay);
+          }
+        }
+      });
+  }
+  join();
 
-  let last = 0;
+  let lastSend = 0;
   return {
-    // throttled position broadcast (~8/s)
+    // throttled position broadcast (~8/s); state is world-space
     update(state, nowMs) {
-      if (nowMs - last < 120) return;
-      last = nowMs;
-      channel.track({ handle, ...state });
+      lastState = { handle, ...state };
+      if (nowMs - lastSend < 120) return;
+      lastSend = nowMs;
+      if (channel && channel.state === 'joined') channel.track(lastState);
     },
     onPeers(cb) { onChange = cb; },
-    leave() { supabase.removeChannel(channel); },
+    leave() { left = true; if (channel) supabase.removeChannel(channel); },
     peers,
   };
 }

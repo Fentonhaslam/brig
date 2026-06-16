@@ -105,6 +105,7 @@ scene.add(worldGroup);
 const shipAnchor = new Object3D();
 let shipYaw = 0;
 const shipPos = new Vector3();
+const _peerWorld = new Vector3(); // scratch for scene->world peer broadcast
 function syncWorld() {
   shipAnchor.position.copy(shipPos);
   shipAnchor.rotation.set(0, shipYaw, 0);
@@ -447,7 +448,7 @@ function updateHelm(dt) {
     if (ax.z > 0.1) castOff();          // push forward to weigh anchor and stand out to sea
     else {
       camTarget.lerp(new Vector3(0, ship.deckY + 2.2, 1), 0.15);
-      hint.textContent = '⚓ Berthed at Santo Domingo — W to cast off · E to step ashore';
+      hint.textContent = `⚓ Berthed at ${activeHarbour?.name || 'port'} — W to cast off · E to step ashore`;
       return;
     }
   }
@@ -490,7 +491,7 @@ window.brig = {
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
   player, ship, places: built.places, inv: inventory, lore, inscribe,
-  dialogue, crew, townsfolk, dayNight,
+  dialogue, crew, townsfolk, peers, dayNight,
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
@@ -501,6 +502,10 @@ window.brig = {
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
 };
+
+// start the voyage berthed at Sevilla — you begin in port, step ashore into the
+// city, then take the helm and cast off when you're ready to cross
+berth(harbours.find((h) => h.name === 'Sevilla') || harbours[1]);
 
 // --- loop ---
 let last = performance.now();
@@ -536,7 +541,7 @@ function frame(now) {
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
   townsfolk.update(t, dt);
-  peers.update(dt);
+  peers.update(dt, worldGroup.matrix, shipYaw);
   cannons.update(dt);
   combat.update(dt, t);
   purse.update(dt);
@@ -548,9 +553,11 @@ function frame(now) {
   torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);
   torch.intensity = 5.5 * (1 - dayNight.dayAmount);
 
-  // broadcast our position to other players (throttled inside)
+  // broadcast our position to other players in ABSOLUTE WORLD space (scene ->
+  // world via the ship anchor), so every client shares one coherent map
   const pp = player.position;
-  world.update({ x: pp.x, y: player.feetY, z: pp.z, heading: 0, mode }, performance.now());
+  _peerWorld.set(pp.x, player.feetY, pp.z).applyMatrix4(shipAnchor.matrix);
+  world.update({ x: _peerWorld.x, y: _peerWorld.y, z: _peerWorld.z, heading: shipYaw, mode }, performance.now());
 
   orbit.update();
   post.render();
