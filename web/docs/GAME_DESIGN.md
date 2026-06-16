@@ -216,10 +216,14 @@ arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
      (default nao; dev `setVessel('skiff')`); helm now reads a per-vessel feel
      (top speed / turn / wind). Building persists skiff ownership. Verified:
      nao default intact (len 39, 10 crew); skiff loads solo (len 9), casts off.
-   - ⬜ Next: calibrate harbour quay heights per-vessel so you can berth/walk
-     ashore from the skiff, make the owned skiff the player's actual vessel, and
-     the admin-only nao ROLE GATE.
-7. **Role/ownership** gate (admin-only nao; players build) — ⬜ next pass.
+   - ✅ The owned skiff is now the player's ACTUAL vessel (vesselKind from
+     brig:skiffOwned), and harbour quay heights are CALIBRATED per vessel:
+     buildWorld({deckTop, halfLen}) sets YLIFT + BOW_GAP from the active vessel,
+     so the quays meet whatever boat you sail. Verified: skiff berths + walks
+     ashore level (feetY ~1.0) at BOTH Sevilla & Santo Domingo; nao unchanged
+     (feetY ~3.4); no fall-through; zero errors.
+7. **Role/ownership** gate (admin-only nao; players build) — ⬜ next pass: block
+   taking the nao's helm for non-admins (dev allowlist/account role).
 5. **Materials + gathering** (timber/canvas/rope/pitch/iron).
 6. **Shipwright + the skiff** (recipe build, the new boat model + sailing feel).
 7. **Role/ownership** gate (admin-only nao; players build).

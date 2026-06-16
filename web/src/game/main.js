@@ -104,6 +104,22 @@ water.update(0, sunDir);
 water.material.uniforms.uFogColor.value.set(FOG);
 water.material.uniforms.uFogFar.value = 1800;
 
+// --- the vessel, riding at the origin ---
+// which boat you sail: the great nao (admins / before you've built one) or your
+// own skiff once built. Created BEFORE the world so the quays can be aligned to
+// this vessel's deck height (so you can berth + walk ashore from either).
+const _ident = getIdentity();
+let vesselKind = 'nao';
+let skiffOwned = false;
+try {
+  skiffOwned = localStorage.getItem('brig:skiffOwned:' + _ident.key) === '1';
+  const forced = localStorage.getItem('brig:vessel:' + _ident.key);
+  if (forced === 'skiff' || (forced !== 'nao' && skiffOwned)) vesselKind = 'skiff';
+} catch {}
+const ship = vesselKind === 'skiff' ? createSkiff() : createShip();
+scene.add(ship.root);
+water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
+
 // The world (Hispaniola ahead, Sevilla astern) lives under a group whose
 // transform is the INVERSE of the ship's world pose. The ship stays fixed at
 // the origin pointing north — so its deck is a clean static physics collider —
@@ -112,7 +128,7 @@ water.material.uniforms.uFogFar.value = 1800;
 // entirely.)
 const worldGroup = new Group();
 worldGroup.matrixAutoUpdate = false;
-const built = buildWorld();
+const built = buildWorld({ deckTop: ship.deckY, halfLen: ship.length / 2 });
 worldGroup.add(built.group);
 scene.add(worldGroup);
 
@@ -127,22 +143,6 @@ function syncWorld() {
   worldGroup.matrix.copy(shipAnchor.matrix).invert();
 }
 syncWorld();
-
-// --- the vessel, riding at the origin ---
-// which boat you sail: the great nao (default / admin) or your own little skiff.
-// 'brig:vessel:<key>' is set only by the dev hook for now; the player's *owned*
-// skiff (brig:skiffOwned) doesn't auto-replace the nao until the harbour heights
-// are calibrated per-vessel + the role gate lands (next pass).
-const _ident = getIdentity();
-let vesselKind = 'nao';
-let skiffOwned = false;
-try {
-  if (localStorage.getItem('brig:vessel:' + _ident.key) === 'skiff') vesselKind = 'skiff';
-  skiffOwned = localStorage.getItem('brig:skiffOwned:' + _ident.key) === '1';
-} catch {}
-const ship = vesselKind === 'skiff' ? createSkiff() : createShip();
-scene.add(ship.root);
-water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
 
 // warm stern lantern — a local glow the bloom pass picks up at dusk
 const lantern = new PointLight(0xffb060, 7, 16, 2.0);

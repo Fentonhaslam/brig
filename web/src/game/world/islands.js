@@ -74,8 +74,10 @@ function kindFor(hex) {
   }
 }
 
-const BOW_GAP = HULL_HALF_LEN + 6;                   // quay sits clear of the (scaled) bow
-const YLIFT = DECK_TOP - 2.4;                        // raise the quay to the scaled deck height
+// per-active-vessel (set in buildWorld): the quay/world lifts to the vessel's
+// deck height so you can berth + walk ashore from whatever boat you sail
+let BOW_GAP = HULL_HALF_LEN + 6;                     // quay sits clear of the bow
+let YLIFT = DECK_TOP - 2.4;                          // quay top = vessel deck height
 const HARBOUR_LOCAL = new Vector3(0, 0, -72);        // Hispaniola quay front (island-local)
 const SEVILLA_HARBOUR_LOCAL = new Vector3(0, 0, 38); // Sevilla quay front, on its sea (north) edge
 const SANLUCAR_LOCAL = new Vector3(0, 0, -30);       // Sanlúcar quay front, at the river mouth
@@ -403,7 +405,10 @@ export const PLACES = [
 ];
 
 // returns { group, places, harbours } to add into the world group
-export function buildWorld() {
+export function buildWorld({ deckTop = DECK_TOP, halfLen = HULL_HALF_LEN } = {}) {
+  // align the quays + world lift to the vessel you're sailing (nao or skiff)
+  YLIFT = deckTop - 2.4;
+  BOW_GAP = halfLen + 6;
   const group = new Group();
   const hisp = buildHispaniola();
   const sev = buildSevilla();
