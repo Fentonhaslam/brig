@@ -176,8 +176,11 @@ Quests are **multiplayer-aware** (each player's own progress; shared world).
    - ✅ **Campiña** fleshed out: a woodland timber stand (solid trunks), the
      cortijo farmstead (farmhouse, barn, yard walls, well, sheep), a roadside
      chapel with bell-gable, a cart + haystacks. All walkable, verified.
-   - ⬜ Remaining: build **Sanlúcar de Barrameda** at the river mouth (its own
-     walkable district: shipwright yard, fishing quay, houses, departure quay).
+   - ✅ **Sanlúcar de Barrameda** — a third harbour (kind 'port', worldPoint
+     (120,0,270), approachYaw 0): cobbled quay + earth town, the shipwright's
+     yard + slipway, a fishing quay (boats, drying nets, barrels), fisher houses,
+     the Castillo de Santiago, a church with bell-tower, and a beacon tower at
+     the mouth. Berths + walkable, verified. **Phase 1.2 COMPLETE.**
 3. **Interactive intro/onboarding** — cinematic arrival, name entry, mentor +
    objective UI, guided first steps. "You are entering the world."
 

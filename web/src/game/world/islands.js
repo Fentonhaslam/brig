@@ -82,6 +82,7 @@ const BOW_GAP = HULL_HALF_LEN + 6;                   // quay sits clear of the (
 const YLIFT = DECK_TOP - 2.4;                        // raise the quay to the scaled deck height
 const HARBOUR_LOCAL = new Vector3(0, 0, -72);        // Hispaniola quay front (island-local)
 const SEVILLA_HARBOUR_LOCAL = new Vector3(0, 0, 38); // Sevilla quay front, on its sea (north) edge
+const SANLUCAR_LOCAL = new Vector3(0, 0, -30);       // Sanlúcar quay front, at the river mouth
 
 function buildHispaniola() {
   const g = new Group();
@@ -139,6 +140,18 @@ function buildSevilla() {
   return { group: g, harbour };
 }
 
+function buildSanlucar() {
+  const g = new Group();
+  const B = makeBuilder();
+  const harbour = buildHarbour(B, {
+    local: SANLUCAR_LOCAL, worldOrigin: SANLUCAR, dir: 1, kind: 'port', approachYaw: 0, name: 'Sanlúcar',
+  });
+  harbour.group = g;
+  B.commit(g, [C.wood, C.wall, C.stone]);
+  g.position.copy(SANLUCAR);
+  return { group: g, harbour };
+}
+
 // ---------------------------------------------------------------------------
 // A walkable harbour: a low quay (top at the ship's deck height) + a gangway +
 // a landmark structure (Hispaniola's keep, or Sevilla's cathedral plaza). Built
@@ -153,6 +166,12 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
   const solid = (dx, dy, dz, hx, hy, hz, color) => {
     B.box(color, hx * 2, hy * 2, hz * 2, ...at(dx, dy, dz));
     colliders.push({ hx, hy, hz, dx, dy: dy + YLIFT, dz: dz * dir });
+  };
+  const G = 2.4; // ground/deck level (pre-YLIFT), shared by the land branches
+  // a terracotta house (walls collide; roof is decorative)
+  const house = (cx, cz, w, h, d) => {
+    solid(cx, G + h / 2, cz, w / 2, h / 2, d / 2, C.wall);
+    B.cone(C.roof, w * 0.62, h * 0.5, ...at(cx, G + h + h * 0.18, cz), 4);
   };
 
   // shared: quay deck + pilings + gangway with rails
@@ -176,8 +195,7 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.rbox(C.stone, 1, 1.4, 1, ...at(-11 + Math.cos(a) * 2.8, 16.6, 42 + Math.sin(a) * 2.8)); }
     B.box(C.cream, 0.35, 4, 0.35, ...at(0, 11, 31));
     B.box(C.red, 2.6, 1.6, 0.18, ...at(1.3, 11.8, 31));
-  } else { // 'city' — a walkable district of 1519 Sevilla on the Guadalquivir
-    const G = 2.4; // ground/deck level (pre-YLIFT)
+  } else if (kind === 'city') { // a walkable district of 1519 Sevilla on the Guadalquivir
     // cobbled ground from the quay back into the city (the streets you walk)
     solid(0, 1.78, 36, 30, 0.6, 37, C.stone);
 
@@ -203,11 +221,6 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     solid(56, G + 1.4, 55, 0.9, 1.4, 59, C.hedge);
     solid(-56, G + 1.4, 96, 0.9, 1.4, 18, C.hedge);
 
-    // a terracotta house (walls collide; roof is decorative)
-    const house = (cx, cz, w, h, d) => {
-      solid(cx, G + h / 2, cz, w / 2, h / 2, d / 2, C.wall);
-      B.cone(C.roof, w * 0.62, h * 0.5, ...at(cx, G + h + h * 0.18, cz), 4);
-    };
     // blocks of houses down both sides — central avenue + side streets stay clear
     for (const cz of [12, 23, 36, 48]) { house(-23, cz, 9, 5 + (cz % 3), 7); house(23, cz, 9, 5 + ((cz + 2) % 3), 7); }
     for (const cz of [16, 30, 44]) { house(-13, cz, 7, 5, 6); house(13, cz, 7, 6, 6); }
@@ -307,6 +320,41 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     B.box(C.cream, 1.6, 0.4, 0.4, ...at(0, G + 3.4, 32));
 
     door = { dx: 0, dy: 2.4, dz: cz0 - 14 };
+  } else if (kind === 'port') { // Sanlúcar de Barrameda — the river-mouth departure town
+    // cobbled quayside + earth town behind (just below the cobbles; autostep lip)
+    solid(0, 1.78, 22, 26, 0.6, 24, C.stone);     // quay/plaza
+    solid(0, 1.68, 46, 40, 0.6, 28, C.earth);     // town earth, inland
+    // bounds (back + sides); the quay side stays open to the sea
+    solid(0, G + 1.4, 76, 40, 1.4, 0.9, C.hedge);
+    solid(-40, G + 1.4, 44, 0.9, 1.4, 32, C.hedge);
+    solid(40, G + 1.4, 44, 0.9, 1.4, 32, C.hedge);
+    // the shipwright's yard — a slipway + a half-built skiff (you launch from here)
+    solid(-20, G + 0.2, 14, 6, 0.3, 8, C.wood);
+    B.box(C.wood, 1.1, 0.9, 10, ...at(-20, G + 1.3, 14));        // keel
+    for (let i = -3; i <= 3; i += 2) B.box(C.wood, 4, 0.3, 0.4, ...at(-20, G + 1.9, 14 + i)); // ribs
+    colliders.push({ hx: 2.2, hy: 1.1, hz: 5.5, dx: -20, dy: G + 1.3 + YLIFT, dz: 14 * dir });
+    house(-28, 26, 8, 5, 7);                                     // shipwright's shed
+    // fishing quay — moored boats, drying nets on frames, fish barrels
+    for (const bz of [6, 12, 18]) B.box(C.wood, 2.2, 0.8, 5, ...at(16, G - 0.2, bz));
+    for (const nz of [8, 16]) { B.box(C.wood, 0.16, 2.2, 4, ...at(22, G + 1.2, nz)); B.box(C.cream, 0.1, 2, 3.6, ...at(22.2, G + 1.2, nz)); }
+    for (const [bx, bz] of [[20, 22], [23, 24], [18, 26]]) B.cyl(C.wood, 0.7, 0.7, 1.4, ...at(bx, G + 0.7, bz), 8);
+    // fisher houses
+    house(-12, 40, 8, 5, 7); house(10, 44, 8, 6, 7); house(-30, 52, 8, 5, 7); house(28, 50, 8, 5, 7); house(0, 58, 9, 6, 8);
+    // the Castillo de Santiago — a square keep with corner towers
+    solid(30, G + 5, 30, 5, 5, 5, C.stone);
+    for (const [tx, tz] of [[26, 26], [26, 34], [34, 26], [34, 34]]) B.cyl(C.stone, 1.6, 2.0, 13, ...at(tx, G + 6.5, tz), 8);
+    colliders.push({ hx: 5, hy: 5, hz: 5, dx: 30, dy: G + 5 + YLIFT, dz: 30 * dir });
+    // a church with a bell-tower
+    solid(-4, G + 3, 64, 4, 3, 6, C.wall);
+    B.box(C.roof, 9, 1.4, 13, ...at(-4, G + 6.5, 64));
+    B.box(C.stone, 3, 14, 3, ...at(-9, G + 7, 60));
+    B.cone(C.roof, 2.4, 4, ...at(-9, G + 16, 60), 4);
+    colliders.push({ hx: 4, hy: 3, hz: 6, dx: -4, dy: G + 3 + YLIFT, dz: 64 * dir });
+    // a beacon tower at the river mouth — marks where the crossing launches
+    B.cyl(C.stone, 1.4, 1.8, 10, ...at(22, G + 5, -6), 8);
+    B.box(C.cream, 1, 1.2, 1, ...at(22, G + 11, -6));
+    colliders.push({ hx: 1.8, hy: 5, hz: 1.8, dx: 22, dy: G + 5 + YLIFT, dz: -6 * dir });
+    door = { dx: 0, dy: 2.4, dz: 58 };
   }
 
   // shared: quayside clutter + lamp posts
@@ -334,9 +382,11 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
 // up over the horizon rather than both hanging in view at once.)
 export const SEVILLA = new Vector3(0, 0, -260);
 export const HISPANIOLA = new Vector3(160, 0, 4200);
+export const SANLUCAR = new Vector3(120, 0, 300); // downriver of Sevilla, at the Atlantic mouth
 
 export const PLACES = [
   { name: 'Sevilla', x: SEVILLA.x, z: SEVILLA.z },
+  { name: 'Sanlúcar', x: SANLUCAR.x, z: SANLUCAR.z },
   { name: 'Santo Domingo', x: HISPANIOLA.x, z: HISPANIOLA.z },
 ];
 
@@ -345,8 +395,11 @@ export function buildWorld() {
   const group = new Group();
   const hisp = buildHispaniola();
   const sev = buildSevilla();
+  const san = buildSanlucar();
   group.add(hisp.group);
   group.add(sev.group);
-  // Hispaniola first — its keep carries the lore courtyard
-  return { group, places: PLACES, harbours: [hisp.harbour, sev.harbour] };
+  group.add(san.group);
+  // Hispaniola first — its keep carries the lore courtyard; Sevilla second
+  // (combat open-water gating references harbours[0]/[1] by index)
+  return { group, places: PLACES, harbours: [hisp.harbour, sev.harbour, san.harbour] };
 }
