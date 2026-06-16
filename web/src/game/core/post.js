@@ -12,6 +12,7 @@ import {
 } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -67,6 +68,16 @@ export function createPost(renderer, scene, camera) {
 
   composer.addPass(new RenderPass(scene, camera));
 
+  // ground the scene with ambient occlusion — contact shadows in every crevice,
+  // under eaves, between cobbles and in corners. The single biggest depth cue
+  // the flat-lit build was missing. Radius tuned to the world's metre-ish scale.
+  const gtao = new GTAOPass(scene, camera, window.innerWidth, window.innerHeight);
+  gtao.output = GTAOPass.OUTPUT.Default;
+  try {
+    gtao.updateGtaoMaterial({ radius: 3.0, distanceExponent: 1.0, thickness: 1.0, scale: 1.0, samples: 16, distanceFallOff: 1.0, screenSpaceRadius: false });
+  } catch { /* keep defaults if the param shape differs across three versions */ }
+  composer.addPass(gtao);
+
   const bloom = new UnrealBloomPass(
     new Vector2(window.innerWidth, window.innerHeight),
     0.42,  // strength — enough to make lanterns + sun glints glow
@@ -83,6 +94,7 @@ export function createPost(renderer, scene, camera) {
   window.addEventListener('resize', () => {
     composer.setSize(window.innerWidth, window.innerHeight);
     bloom.setSize(window.innerWidth, window.innerHeight);
+    gtao.setSize(window.innerWidth, window.innerHeight);
   });
 
   return {

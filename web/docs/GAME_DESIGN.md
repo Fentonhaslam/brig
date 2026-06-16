@@ -247,3 +247,45 @@ arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
 - Diegetic UI (objectives, prompts) that fits the period frame.
 - Every system persisted, multiplayer-safe, and configurable where it matters.
 - Verified headless each pass; no regressions to sailing/combat/market/dialogue.
+
+---
+
+## 9. Visual fidelity overhaul — "grounded stylized" (PBR + post)
+
+Target: a Sea of Thieves / Fable feel — physically-lit but stylised via the
+grade. The flat-toon, merged-primitive look has a hard ceiling; this rebuilds
+the *foundation* and re-skins the world through it. Biggest perceived-quality
+levers, in order: **lighting + post + materials**, not polygon count.
+
+### A. Rendering foundation (lifts everything at once)
+- ✅ **Ambient occlusion** (GTAO pass, radius ~3) — contact shadows in every
+  crevice/corner/under-eave. The single biggest depth cue we were missing.
+- ✅ ACES filmic tone mapping + bloom + warm split-tone grade (already present).
+- ⬜ **Image-based lighting**: a PMREM environment from the sky (or an HDRI) →
+  `scene.environment` for soft ambient + subtle specular once materials are PBR.
+- ⬜ Softer/contact shadows; SMAA; tune exposure + AO strength per time-of-day.
+
+### B. PBR material library (the "grounded" core)
+- ⬜ Move hero surfaces from `MeshToonMaterial` → `MeshStandardMaterial` with
+  tiled **normal + roughness + AO** maps: cobblestone, plaster, terracotta tile,
+  weathered timber, stone ashlar, sailcloth, earth, water-worn quay.
+- ⬜ **Bake vertex-colour AO** into the static merged meshes (cheap runtime,
+  instant "crafted" depth). Rim/fresnel for silhouette readability.
+
+### C. Detail kits + instancing (cheap, real detail)
+- ⬜ A modular **building kit**: beveled masses, **inset** windows/doors with
+  frames + shutters, eaves, sills, varied **tiled roofs**, chimneys, balconies —
+  replacing box+cone. Parameterised so towns vary.
+- ⬜ `InstancedMesh` for repeated detail: roof tiles, cobbles, shutters, barrels,
+  crates, **foliage/grass with wind**, crowd. Thousands of pieces, few draw calls.
+- ⬜ LOD + DPR cap + frustum culling so fidelity stays performant.
+
+### D. Atmosphere + water
+- ⬜ Height/exponential fog, dawn/dusk light shafts, richer layered sky, dust
+  motes; water reflections + shoreline foam.
+
+### Process change
+Stop hand-placing primitive boxes. Build the foundation + reusable instanced
+kits + material library, then **re-skin** Sevilla/Triana/campiña/Sanlúcar/the
+ship through them. Each pass: verified headless (zero real errors) + a
+screenshot to confirm the visual lift, then commit.
