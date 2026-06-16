@@ -17,8 +17,8 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { toonMaterial, withOutline } from '../core/toon.js';
-import { woodGrain, stone, mottle } from '../core/textures.js';
+import { withOutline } from '../core/toon.js';
+import { surfaceMaterial } from '../core/materials.js';
 import { DECK_TOP, HULL_HALF_LEN } from './ship.js';
 
 // per-colour bucket builder -> one merged mesh per material
@@ -40,7 +40,7 @@ function makeBuilder() {
         // non-indexed before merging.
         const merged = mergeGeometries(geos.map((g) => (g.index ? g.toNonIndexed() : g)), false);
         merged.computeVertexNormals();
-        const mesh = new Mesh(merged, toonMaterial(hex, texFor(hex)));
+        const mesh = new Mesh(merged, surfaceMaterial(hex, kindFor(hex)));
         if (outline.includes(hex)) withOutline(mesh, 0.14);
         parent.add(mesh);
       }
@@ -57,24 +57,18 @@ const C = {
   river: 0x2f6d86,
 };
 
-// detail map per palette colour — stonework on masonry, grain on timber, a
-// soft mottle on sand/grass (fresh texture per material so repeats are its own)
-function texFor(hex) {
+// map each palette colour to a PBR surface kind (materials.js) — masonry, lime
+// plaster, timber, terracotta tile, earth/foliage, water, metal
+function kindFor(hex) {
   switch (hex) {
-    case C.stone: return { map: stone(3, 3) };
-    case C.wall: return { map: stone(2, 2) };
-    case C.rock: return { map: stone(3, 4) };
-    case C.wood: return { map: woodGrain(2, 3) };
-    case C.roof: return { map: woodGrain(2, 2) };
-    case C.trunk: return { map: woodGrain(1, 3) };
-    case C.sand: return { map: mottle(6, 6) };
-    case C.grass: return { map: mottle(6, 6) };
-    case C.earth: return { map: mottle(8, 8) };
-    case C.field: return { map: mottle(8, 8) };
-    case C.olive: return { map: mottle(2, 2) };
-    case C.hedge: return { map: mottle(3, 3) };
-    case C.leaf: return { map: mottle(2, 2) };
-    default: return {};
+    case C.stone: case C.rock: return 'stone';
+    case C.wall: case C.cream: return 'wall';
+    case C.wood: case C.trunk: return 'wood';
+    case C.roof: case C.red: return 'roof';
+    case C.sand: case C.earth: case C.grass: case C.field:
+    case C.olive: case C.leaf: case C.hedge: return 'ground';
+    case C.river: return 'water';
+    default: return 'none';
   }
 }
 

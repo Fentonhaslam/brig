@@ -266,11 +266,15 @@ levers, in order: **lighting + post + materials**, not polygon count.
 - ⬜ Softer/contact shadows; SMAA; tune exposure + AO strength per time-of-day.
 
 ### B. PBR material library (the "grounded" core)
-- ⬜ Move hero surfaces from `MeshToonMaterial` → `MeshStandardMaterial` with
-  tiled **normal + roughness + AO** maps: cobblestone, plaster, terracotta tile,
-  weathered timber, stone ashlar, sailcloth, earth, water-worn quay.
-- ⬜ **Bake vertex-colour AO** into the static merged meshes (cheap runtime,
-  instant "crafted" depth). Rim/fresnel for silhouette readability.
+- ✅ **IBL**: a PMREM `RoomEnvironment` → `scene.environment` (soft ambient +
+  whisper of specular; sun still leads). `core/materials.js` exposes PBR surface
+  materials (`MeshStandardMaterial` + the procedural detail textures reused as
+  albedo `map` **and** `bumpMap` — stone, lime plaster, timber, terracotta tile,
+  sailcloth, earth, water, metal). The world (islands.js) is migrated off flat
+  toon onto these, keeping the merged-draw-call batching. Verified: 32 merged PBR
+  surfaces; the city reads grounded under sun+env+AO+grade; zero errors.
+- ⬜ Remaining: convert the **ship + characters** to PBR; bake vertex-colour AO
+  into the static merges; rim/fresnel for silhouette readability.
 
 ### C. Detail kits + instancing (cheap, real detail)
 - ⬜ A modular **building kit**: beveled masses, **inset** windows/doors with

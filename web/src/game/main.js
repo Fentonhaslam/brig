@@ -6,8 +6,9 @@
 
 import {
   Scene, PerspectiveCamera, Color, Fog, Vector3, Group, Object3D, MathUtils,
-  HemisphereLight, DirectionalLight, PointLight,
+  HemisphereLight, DirectionalLight, PointLight, PMREMGenerator,
 } from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { createRenderer } from './core/renderer.js';
 import { createPost } from './core/post.js';
@@ -83,6 +84,14 @@ sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
 scene.add(sun);
 scene.add(sun.target); // target stays at the origin, where the ship rides
+
+// image-based lighting: a soft neutral environment so the PBR world surfaces
+// pick up gentle ambient + a whisper of specular (the sun lamp still leads).
+// Generated once into a PMREM cube; cheap at runtime.
+{
+  const pmrem = new PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+}
 
 const sky = createSky(scene);
 sky.setSun(sunDir, 0xffe9c0, 0xf0dcae, 0x6f9ec2);
