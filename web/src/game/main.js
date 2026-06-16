@@ -21,6 +21,7 @@ import { buildWorld } from './world/islands.js';
 import { createDayNight } from './world/daynight.js';
 import { createWeather } from './world/weather.js';
 import { createAmbiance } from './world/ambiance.js';
+import { createSeaLife } from './world/sealife.js';
 import { createMinimap } from './ui/minimap.js';
 import { createDialogue } from './ui/dialogue.js';
 import { getIdentity } from './player/identity.js';
@@ -151,6 +152,8 @@ const dayNight = createDayNight({ renderer, sun, hemi, sky, water, scene, post, 
 const weather = createWeather({ scene, water, sky, camera });
 // fair-weather ambiance — gulls wheeling overhead + a soft sun/moon disc
 const ambiance = createAmbiance(scene);
+// a pod of dolphins (+ the odd whale) porpoising in calm open water
+const sealife = createSeaLife(scene);
 
 // voyage minimap — your position on the crossing relative to both ports
 const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z, yaw: shipYaw }));
@@ -479,7 +482,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, dayNight,
   berth, castOff, get berthed() { return berthed; },
-  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market,
+  harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
   // jump to just off a port (default Santo Domingo), ready to auto-berth
   approachHarbour(name) {
@@ -518,6 +521,7 @@ function frame(now) {
   orbit.setStorm(weather.storm);        // the view rocks in a swell
   spray.update(dt, weather.storm, nav.speed); // foam off the bow
   ambiance.update(dt, t, weather.storm, dayNight.dayAmount, dayNight.sunDir, camera.position);
+  sealife.update(dt, t, weather.storm, camera.position, berthed);
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
