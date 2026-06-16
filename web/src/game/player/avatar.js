@@ -35,6 +35,13 @@ export const ROLES = {
   gunner:       { skin: 0xb07746, armor: 0x4a4540, cloth: 0x3a3530, accent: 0x7a2a22, boot: 0x2a2420, hat: 'bandana', hatColor: 0x8a2a22, beard: 0x2a2018 },
   sailor:       { skin: 0xc98d63, armor: 0x6a7d92, cloth: 0x556270, accent: 0xb8a9bd, boot: 0x3a2c1e, hat: 'cap', hatColor: 0x44525e, beard: 0 },
   topman:       { skin: 0xc08152, armor: 0x8a7a5a, cloth: 0x7a6a4a, accent: 0x9c3a2a, boot: 0x3a2c1e, hat: 'bandana', hatColor: 0x5a6a4a, beard: 0 },
+  // shore folk — the people of Sevilla and the colony
+  friar:        { skin: 0xc08152, armor: 0x4a3826, cloth: 0x4a3826, accent: 0x6b5a3a, boot: 0x2a1c12, hat: 'none', beard: 0x3a2c1e },
+  merchant:     { skin: 0xc98d63, armor: 0x33283f, cloth: 0x2a2038, accent: 0xc9a23a, boot: 0x2a1c12, hat: 'cap', hatColor: 0x241b30, beard: 0x2a1d12 },
+  matron:       { skin: 0xd1a07a, armor: 0x7a3a4a, cloth: 0x6a3242, accent: 0xe8dcc0, boot: 0x3a2c1e, hat: 'bandana', hatColor: 0xe8dcc0, beard: 0 },
+  hidalgo:      { skin: 0xc98d63, armor: 0x2a3550, cloth: 0x1c2742, accent: 0xc9a23a, boot: 0x2a1c12, hat: 'plume', hatColor: 0x161d33, plume: 0x7a2a8a, beard: 0x2a1d12 },
+  urchin:       { skin: 0xbd7e4f, armor: 0x8a7a5a, cloth: 0x6a5a3a, accent: 0x5a4326, boot: 0x3a2c1e, hat: 'cap', hatColor: 0x5a4a2c, beard: 0 },
+  colonist:     { skin: 0xbd7e4f, armor: 0x6a6250, cloth: 0x5a5240, accent: 0x8a5a32, boot: 0x3a2c1e, hat: 'cap', hatColor: 0x4a4636, beard: 0x3a2c1e },
 };
 
 const HIP_Y = 0.9, SHOULDER_Y = 1.42, HEAD_Y = 1.72;

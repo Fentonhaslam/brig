@@ -38,6 +38,7 @@ import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
 import { createCrew } from './world/crew.js';
+import { createTownsfolk } from './world/townsfolk.js';
 import { createPeers } from './player/peers.js';
 import { joinWorld } from '../net/presence.js';
 
@@ -180,6 +181,8 @@ window.addEventListener('keydown', (e) => {
 
 // the ship's company (named crew at their stations)
 const crew = createCrew(scene, ship);
+// townsfolk ashore — spawned when you berth, cleared when you cast off
+const townsfolk = createTownsfolk(scene);
 
 // shadow flags — everything solid casts + receives, but the inverted-hull ink
 // outlines (ShaderMaterial back-face shells) must NOT, or they'd bleed a fat
@@ -349,6 +352,9 @@ function berth(h) {
     return physics.staticCuboid(c.hx, c.hy, c.hz, _cv.x, _cv.y, _cv.z, rot);
   });
   keepDoorScene.set(h.worldPoint.x + h.keepDoor.dx, h.worldPoint.y + h.keepDoor.dy, h.worldPoint.z + h.keepDoor.dz).applyMatrix4(worldGroup.matrix);
+  // people ashore — placed against the now-fixed world matrix, then shadowed
+  townsfolk.populate(h, worldGroup.matrix);
+  castShadows(townsfolk.group);
   if (bowBody) { physics.world.removeRigidBody(bowBody.body); bowBody = null; }
   mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
   player.teleport(0, ship.deckY + 1.6, ship.length * 0.4); // up by the bow / gangway
@@ -363,6 +369,7 @@ function castOff() {
   keepDoorScene.set(0, 0, 1e6);
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
+  townsfolk.clear();
   const c = ship.colliders[bowIdx];
   bowBody = physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z); // restore bow rail
 }
@@ -404,8 +411,9 @@ function updateWalk(dt) {
     camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
   }
 
-  // crew proximity / interaction (walk away to end a chat)
-  nearNpc = crew.nearest(player.position, 2.6);
+  // crew + townsfolk proximity (the two are an ocean apart, so at most one is
+  // ever in range); walk away to end a chat
+  nearNpc = townsfolk.nearest(player.position, 2.6) || crew.nearest(player.position, 2.6);
   if (dialogue.isOpen && !nearNpc) dialogue.close();
 
   if (dialogue.isOpen) { /* hint stays as the conversation */ }
@@ -417,6 +425,8 @@ function updateWalk(dt) {
     const port = activeHarbour?.name || 'port';
     if (activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) {
       hint.textContent = `The Keep of ${port} — press F to inscribe a memory-stone`;
+    } else if (nearNpc) {
+      hint.textContent = `Press F to speak with ${nearNpc.name}`;
     } else {
       hint.textContent = `Ashore at ${port} — press T to trade at the market · return to the helm to cast off`;
     }
@@ -480,7 +490,7 @@ window.brig = {
   get shipYaw() { return shipYaw; },
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
   player, ship, places: built.places, inv: inventory, lore, inscribe,
-  dialogue, crew, dayNight,
+  dialogue, crew, townsfolk, dayNight,
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
@@ -525,6 +535,7 @@ function frame(now) {
   if (mode !== 'helm') ship.wheel.rotation.y = Math.sin(t * 0.6) * 0.05; // gentle idle sway (helm drives it otherwise)
   helmHud.style.display = (mode === 'helm' && !berthed) ? 'block' : 'none';
   crew.update(t, dt);
+  townsfolk.update(t, dt);
   peers.update(dt);
   cannons.update(dt);
   combat.update(dt, t);

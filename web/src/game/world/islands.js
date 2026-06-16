@@ -229,9 +229,10 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
   }
 
   return {
-    name, kind, bowGap: BOW_GAP, approachYaw,
+    name, kind, bowGap: BOW_GAP, approachYaw, dir,
     worldPoint: worldOrigin.clone().add(local),
     keepDoor: { dx: door.dx, dy: door.dy + YLIFT, dz: door.dz * dir },
+    walkY: 2.4 + YLIFT, // top of the quay/cobbles, relative to worldPoint — where folk stand
     colliders,
   };
 }
