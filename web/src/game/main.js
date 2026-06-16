@@ -34,6 +34,8 @@ import { createCombat } from './systems/combat.js';
 import { createRefit } from './systems/refit.js';
 import { createMarket } from './systems/market.js';
 import { createPurse } from './ui/purse.js';
+import { createObjective } from './ui/objective.js';
+import { createIntro } from './systems/intro.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -337,6 +339,15 @@ const keepDoorScene = new Vector3(0, 0, 1e6); // door of the active port, scene 
 
 function harbourScene(h) { return _hp.copy(h.worldPoint).applyMatrix4(worldGroup.matrix); }
 
+// map the active (berthed) harbour's design coords -> scene space; dy defaults
+// to the walkable ground surface. Used by the intro guide + QA.
+function designToScene(dx, dz, dy) {
+  if (!activeHarbour) return null;
+  const h = activeHarbour;
+  const v = new Vector3(h.worldPoint.x + dx, h.worldPoint.y + (dy ?? h.walkY), h.worldPoint.z + dz * h.dir).applyMatrix4(worldGroup.matrix);
+  return { x: v.x, y: v.y, z: v.z };
+}
+
 function berth(h) {
   if (berthed) return;
   berthed = true; activeHarbour = h;
@@ -376,7 +387,8 @@ function castOff() {
 }
 
 function updateWalk(dt) {
-  const ax = dialogue.isOpen ? { x: 0, z: 0 } : input.moveAxis(); // hold still while talking
+  const ax = (dialogue.isOpen || intro.active) ? { x: 0, z: 0 } : input.moveAxis(); // hold still while talking / during the intro
+  if (intro.active) moveTarget = null;
   if (ax.x || ax.z) {
     moveTarget = null;
     camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
@@ -485,6 +497,10 @@ function updateHelm(dt) {
     + `<span style="display:inline-block;transform:rotate(${windRotDeg.toFixed(0)}deg)">⬆</span> wind ${windPct}%</div>`;
 }
 
+// the objective HUD + the opening (name entry, cinematic, onboarding guide)
+const objective = createObjective();
+const intro = createIntro({ orbit, objective, sceneAt: designToScene });
+
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
   get shipPos() { return shipPos; },
@@ -501,19 +517,16 @@ window.brig = {
     this.setShip(h.worldPoint.x - Math.sin(h.approachYaw) * 38, h.worldPoint.z - Math.cos(h.approachYaw) * 38, h.approachYaw);
   },
   walk(dx, dz, run) { player.walk(dx, dz, run); }, // for headless movement tests
-  // map a berthed harbour's design coords -> scene space (QA: place/check things
-  // against the baked land); dy defaults to the walkable ground surface
-  sceneAt(dx, dz, dy) {
-    if (!activeHarbour) return null;
-    const h = activeHarbour;
-    const v = new Vector3(h.worldPoint.x + dx, h.worldPoint.y + (dy ?? h.walkY), h.worldPoint.z + dz * h.dir).applyMatrix4(worldGroup.matrix);
-    return { x: v.x, y: v.y, z: v.z };
-  },
+  sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
+  objective, intro,
 };
 
 // start the voyage berthed at Sevilla — you begin in port, step ashore into the
 // city, then take the helm and cast off when you're ready to cross
 berth(harbours.find((h) => h.name === 'Sevilla') || harbours[1]);
+// the opening: first visit gets name entry + a cinematic + the onboarding guide;
+// returning players walk straight in
+intro.maybeRun();
 
 // --- loop ---
 let last = performance.now();
@@ -556,6 +569,7 @@ function frame(now) {
 
   if (mode === 'walk') updateWalk(dt);
   else updateHelm(dt);
+  intro.update(player.position); // advance the onboarding objective as you reach each step
 
   // the player's lantern lights the deck around them after dark
   torch.position.set(player.position.x, player.feetY + 1.5, player.position.z);

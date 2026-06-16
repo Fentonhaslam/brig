@@ -23,6 +23,22 @@ function linearTree(lines) {
 
 // hand-authored branching conversations, keyed by name
 const TREES = {
+  'Harbourmaster Quintero': {
+    start: 'start',
+    tree: {
+      start: { text: 'New off the barge? Welcome to Sevilla, sailor. Every soul here is chasing the same thing you are — a deck of their own and a fair wind to the Indies.', choices: [
+        { label: 'How do I get a ship?', to: 'ship' },
+        { label: 'What is there to do here?', to: 'do' },
+        { label: 'Thank you, Harbourmaster.', to: null },
+      ] },
+      ship: { text: 'You don’t buy your first boat — you build it. Cross the Puente de Barcas to Triana and find the shipwright. He’ll want timber, canvas, rope and pitch before he lays a keel for you.', choices: [
+        { label: 'Where do I find all that?', to: 'mats' },
+        { label: 'I’ll see the shipwright.', to: null },
+      ] },
+      mats: { text: 'Timber from the wood beyond the gate, canvas and rope from the Triana chandlers, pitch from the boilers by the quay. Earn coin on errands and trade, and the rest follows. Mind — that great nao at the quay is the Crown’s, not for the likes of us.', choices: [{ label: 'Understood.', to: null }] },
+      do: { text: 'Trade at the market, run errands for the merchants and friars, fish the river. Coin and goodwill both buy you closer to a hull of your own.', choices: [{ label: 'Good to know.', to: null }] },
+    },
+  },
   'Mercader Esquivel': {
     start: 'start',
     tree: {
@@ -69,6 +85,7 @@ const TREES = {
 // open avenue/plaza, clear of the house colliders at |dx|~13/23.
 const FOLK = {
   Sevilla: [
+    { name: 'Harbourmaster Quintero', title: 'Harbourmaster', role: 'captain', dx: 6, dz: 12, ry: Math.PI * 0.92, radius: 1.4 },
     { name: 'Estibador Rufino', title: 'Stevedore', role: 'colonist', dx: -6, dz: 12, ry: 0.4,
       lines: ['Forty casks of oil before the bell, they tell me. My back tells me otherwise.', 'Every ship that sails takes a piece of Sevilla with it — and brings back two strangers.'] },
     { name: 'Perico', title: 'Quay Urchin', role: 'urchin', dx: 7, dz: 19, ry: -0.6, scale: 0.72, radius: 3.4,

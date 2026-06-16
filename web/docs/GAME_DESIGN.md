@@ -182,7 +182,15 @@ Quests are **multiplayer-aware** (each player's own progress; shared world).
      the Castillo de Santiago, a church with bell-tower, and a beacon tower at
      the mouth. Berths + walkable, verified. **Phase 1.2 COMPLETE.**
 3. **Interactive intro/onboarding** — cinematic arrival, name entry, mentor +
-   objective UI, guided first steps. "You are entering the world."
+   objective UI, guided first steps. "You are entering the world."  ✅ DONE
+   - Name-entry card (persists the handle), a letterbox cinematic that sweeps
+     over the Sevilla quay, a Harbourmaster mentor NPC on the quay with a
+     welcome/guidance conversation, a diegetic objective HUD, and a proximity
+     onboarding guide (find the Harbourmaster → cross to Triana → reach the
+     shipwright). Seen-once flag; returning players skip straight in. Verified.
+
+**✅ PHASE 1 (FOUNDATION) COMPLETE** — a walkable, populated Andalusian world you
+arrive into. Next: Phase 2 (quests, materials, the shipwright + your skiff).
 
 ### Phase 2 — Progression systems
 4. **Quest framework** + the spine questline + first side-quests.

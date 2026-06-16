@@ -19,3 +19,11 @@ export function getIdentity() {
   }
   return { key, handle };
 }
+
+// Update the stored handle (used by the intro's name-entry). Returns the
+// cleaned name actually stored.
+export function setHandle(name) {
+  const clean = String(name || '').trim().slice(0, 24) || ('Sailor ' + (1000 + Math.floor(Math.random() * 9000)));
+  try { localStorage.setItem('brig:handle', clean); } catch {}
+  return clean;
+}
