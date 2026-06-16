@@ -53,6 +53,7 @@ const C = {
   trunk: 0x6b4a2c, leaf: 0x2f9b46,
   wood: 0x6a4a2c, stone: 0xb9ad8c, wall: 0xcabf9e, roof: 0x8a4a2e,
   red: 0x9c3528, cream: 0xe8dcc0,
+  earth: 0x9c7c4e, field: 0x8fa44a, olive: 0x5b7a3a, hedge: 0x4f6b34,
 };
 
 // detail map per palette colour — stonework on masonry, grain on timber, a
@@ -67,6 +68,10 @@ function texFor(hex) {
     case C.trunk: return { map: woodGrain(1, 3) };
     case C.sand: return { map: mottle(6, 6) };
     case C.grass: return { map: mottle(6, 6) };
+    case C.earth: return { map: mottle(8, 8) };
+    case C.field: return { map: mottle(8, 8) };
+    case C.olive: return { map: mottle(2, 2) };
+    case C.hedge: return { map: mottle(3, 3) };
     case C.leaf: return { map: mottle(2, 2) };
     default: return {};
   }
@@ -174,6 +179,26 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     const G = 2.4; // ground/deck level (pre-YLIFT)
     // cobbled ground from the quay back into the city (the streets you walk)
     solid(0, 1.78, 36, 30, 0.6, 37, C.stone);
+
+    // --- walkable Andalusian earth: a broad ground under the city and inland
+    // into the campiña (countryside) beyond the gate. Sits just below the cobbles
+    // (autostep handles the lip) so the whole plot is walkable, not just the quay.
+    solid(0, 1.68, 56, 56, 0.6, 54, C.earth);
+    // grass field patches + a dirt road running inland from the gate
+    for (const [fx, fz] of [[-34, 92], [33, 96], [-22, 104], [24, 86]]) B.box(C.field, 22, 0.22, 17, ...at(fx, G + 0.12, fz));
+    B.box(C.earth, 7.5, 0.26, 40, ...at(0, G + 0.14, 92));
+    // an olive grove — trunks are solid so you weave between them
+    const olive = (ox, oz) => {
+      B.cyl(C.wood, 0.4, 0.55, 4.6, ...at(ox, G + 2.1, oz), 6);
+      B.ico(C.olive, 2.6, 0, 1, 0.82, 1, ...at(ox, G + 5.2, oz));
+      colliders.push({ hx: 0.6, hy: 2.4, hz: 0.6, dx: ox, dy: G + 2.4 + YLIFT, dz: oz * dir });
+    };
+    for (const [ox, oz] of [[-16, 84], [-23, 97], [-12, 105], [18, 82], [27, 95], [15, 106]]) olive(ox, oz);
+    // bounding hedges (far + sides) so the countryside reads as enclosed for now;
+    // the quay side stays open so you can return to the ship
+    solid(0, G + 1.4, 110, 56, 1.4, 0.9, C.hedge);
+    solid(-56, G + 1.4, 56, 0.9, 1.4, 54, C.hedge);
+    solid(56, G + 1.4, 56, 0.9, 1.4, 54, C.hedge);
 
     // a terracotta house (walls collide; roof is decorative)
     const house = (cx, cz, w, h, d) => {

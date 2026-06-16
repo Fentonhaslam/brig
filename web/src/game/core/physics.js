@@ -34,6 +34,18 @@ export async function initPhysics(gravityY = -20) {
     return { body, collider: col };
   }
 
+  // Bake an arbitrary mesh as a fixed collider — for walkable terrain, slopes,
+  // riverbanks and other irregular ground the character controller then walks on
+  // (it handles slopes/steps/snap itself). `vertices` is a flat Float32Array of
+  // xyz triples and `indices` a Uint32Array; the body can be posed in the world.
+  function staticTrimesh(vertices, indices, x = 0, y = 0, z = 0, euler) {
+    const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
+    if (euler) bodyDesc.setRotation(quatFromEuler(euler));
+    const body = world.createRigidBody(bodyDesc);
+    const col = world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices), body);
+    return { body, collider: col };
+  }
+
   function dynamicBall(r, x, y, z, restitution = 0.25) {
     const body = world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z),
@@ -82,5 +94,5 @@ export async function initPhysics(gravityY = -20) {
     while (acc >= world.timestep && n < 5) { world.step(); acc -= world.timestep; n++; }
   }
 
-  return { R: RAPIER, world, step, staticCuboid, dynamicBall, makeCharacter };
+  return { R: RAPIER, world, step, staticCuboid, staticTrimesh, dynamicBall, makeCharacter };
 }
