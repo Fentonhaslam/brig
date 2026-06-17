@@ -246,8 +246,14 @@ punishing crossing).
    window.brig.repairHull; persisted (brig:hull). At 0 it fires onFounder.
    Verified: storm erosion, damage/repair, persistence, founder warning.
 10. **The crossing** — punishing roguelike danger (pirates/whales/weather), loss
-    rules, difficulty config tiers.
-11. **Polish + QA pass** across the whole journey.
+    rules, difficulty config tiers.  ✅ DONE — `config/difficulty.js` (Forgiving/
+    Standard/Harsh, default Harsh) scales storm erosion + pirate-hit + whale-strike
+    damage and sets the loss rule; a ⚙ settings picker (persisted). Whale strikes
+    while sailing. At hull 0 you FOUNDER: a diegetic overlay, then per tier —
+    Harsh clears the skiff + cargo and washes you back to Sevilla on foot;
+    Standard loses cargo; Forgiving tows you home. Verified: Harsh founder wipes
+    skiff+cargo, resets hull, respawns berthed at Sevilla, no soft-lock.
+11. **Polish + QA pass** across the whole journey.  ← final step
 
 ### Orchestration
 - **Loops** drive phase-by-phase progress (one verified, committed feature per

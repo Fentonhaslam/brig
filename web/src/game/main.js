@@ -42,6 +42,8 @@ import { createQuests } from './systems/quests.js';
 import { createGather } from './systems/gather.js';
 import { createFishing } from './systems/fishing.js';
 import { createHull } from './systems/hull.js';
+import { tier, loadDifficulty, saveDifficulty, TIERS } from './config/difficulty.js';
+import { createSettings } from './ui/settings.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -127,6 +129,9 @@ water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the water
 let isAdmin = false;
 try { isAdmin = localStorage.getItem('brig:admin') === '1'; } catch {}
 const canHelm = () => vesselKind === 'skiff' || isAdmin;
+
+// crossing difficulty (persisted) — scales hull hazards + sets the founder rule
+let diff = tier(loadDifficulty());
 
 // The world (Hispaniola ahead, Sevilla astern) lives under a group whose
 // transform is the INVERSE of the ship's world pose. The ship stays fixed at
@@ -257,12 +262,50 @@ const combat = createCombat({
   getBerthed: () => berthed,
   // only in open ocean — well clear of Sevilla (the start) and Santo Domingo
   getOpenWater: () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500,
-  onHit: () => hull.damage(12), // a pirate ball that lands gouges the hull
+  onHit: () => hull.damage(12 * diff.pirate), // a pirate ball that lands gouges the hull
 });
-// a pirate ball that lands also gouges the hull (wired above via onHit)
+
+// --- foundering + at-sea hazard messages ---
+const founderVeil = document.createElement('div');
+founderVeil.style.cssText = 'position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;flex-direction:column;'
+  + 'background:rgba(6,10,18,0);transition:background .8s;pointer-events:none';
+founderVeil.innerHTML = '<div style="font:800 46px Georgia,serif;color:#cfe0ff;letter-spacing:7px;text-shadow:0 4px 22px #000">FOUNDERED</div>'
+  + '<div id="brig-found-sub" style="margin-top:12px;font:600 16px Georgia,serif;color:#d8c39a;text-shadow:0 2px 8px #000"></div>';
+document.body.appendChild(founderVeil);
+const flashEl = document.createElement('div');
+flashEl.style.cssText = 'position:fixed;top:42%;left:50%;transform:translateX(-50%);z-index:90;display:none;'
+  + 'font:700 20px Georgia,serif;color:#ffcaa0;text-shadow:0 2px 10px rgba(0,0,0,.8);pointer-events:none';
+document.body.appendChild(flashEl);
+let flashT = 0;
+function flashMsg(t) { flashEl.textContent = t; flashEl.style.display = 'block'; flashT = 2.6; }
+
+function respawnSevilla() {
+  const h = harbours.find((x) => x.name === 'Sevilla') || harbours[1];
+  berthCooldown = 0;
+  shipPos.set(h.worldPoint.x - Math.sin(h.approachYaw) * h.bowGap, 0, h.worldPoint.z - Math.cos(h.approachYaw) * h.bowGap);
+  shipYaw = h.approachYaw; syncWorld();
+}
+let foundering = false;
 function founder() {
-  // basic for now — warn loudly; the full roguelike loss + difficulty lands next pass
-  objective.set('⚓ Your hull is failing!', 'Make port and repair with timber + pitch, or you will founder on the crossing.');
+  if (foundering) return; foundering = true;
+  const rule = diff.loss;
+  founderVeil.style.display = 'flex';
+  requestAnimationFrame(() => { founderVeil.style.background = 'rgba(6,10,18,.82)'; });
+  const sub = founderVeil.querySelector('#brig-found-sub');
+  sub.textContent = rule === 'all' ? 'Your boat and her cargo are lost to the Ocean Sea.'
+    : rule === 'cargo' ? 'Your cargo is lost — but the hull is salvaged.'
+      : 'A passing ship tows you back. Your cargo holds.';
+  if (rule === 'all' || rule === 'cargo') {
+    for (const id of ['cloth', 'tools', 'wine', 'oil', 'spice', 'gold', 'timber', 'biscuit', 'fish', 'canvas', 'rope', 'pitch', 'iron']) { const c = inventory.count(id); if (c) inventory.take(id, c); }
+  }
+  if (rule === 'all') { try { localStorage.removeItem('brig:skiffOwned:' + _ident.key); localStorage.setItem('brig:vessel:' + _ident.key, 'nao'); } catch {} skiffOwned = false; }
+  hull.reset();
+  respawnSevilla();
+  setTimeout(() => {
+    founderVeil.style.background = 'rgba(6,10,18,0)';
+    setTimeout(() => { founderVeil.style.display = 'none'; foundering = false; }, 800);
+    objective.set('Wrecked, ashore in Sevilla', rule === 'all' ? 'Build a new skiff at the Triana shipwright.' : 'Repair, provision, and brave the crossing again.');
+  }, 2600);
 }
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
@@ -360,6 +403,7 @@ const SAIL_SPEED = 44; // the nao: heavy, fast top end so the crossing isn't a s
 const VESSEL = vesselKind === 'skiff'
   ? { speed: 30, turn: 1.05, wind: 1.9 }
   : { speed: SAIL_SPEED, turn: 0.7, wind: 1.0 };
+let whaleTimer = 26; // countdown to the next whale strike while sailing
 
 const UP = new Vector3(0, 1, 0);
 const fwd = new Vector3();
@@ -568,6 +612,8 @@ const fishing = createFishing({
   getAtSea: () => !berthed,
   getActive: () => !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
 });
+// settings — pick the crossing's difficulty tier (persisted)
+createSettings({ tiers: TIERS, current: loadDifficulty(), onPick: (t) => { diff = tier(t); saveDifficulty(t); } });
 
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
@@ -588,6 +634,7 @@ window.brig = {
   sceneAt: designToScene, // map berthed design coords -> scene (QA + intro guide)
   objective, intro, quests, gather, fishing,
   get hull() { return hull.hull; }, damageHull: (n) => hull.damage(n), repairHull: (n) => hull.repair(n ?? 30),
+  get difficulty() { return diff.label; }, setDifficulty(t) { diff = tier(t); saveDifficulty(t); }, founder: () => founder(),
   vessel: vesselKind, get skiffOwned() { return skiffOwned; }, get isAdmin() { return isAdmin; }, get canHelm() { return canHelm(); },
   setVessel(k) { try { localStorage.setItem('brig:vessel:' + _ident.key, k); } catch {} }, // dev: reload to apply
   setAdmin(v) { isAdmin = !!v; try { localStorage.setItem('brig:admin', v ? '1' : '0'); } catch {} },
@@ -644,7 +691,13 @@ function frame(now) {
   quests.update(dt, player.position); // advance reach/have quest triggers
   gather.update(dt);                   // gather-point prompts + cooldowns
   fishing.update(dt);                  // cast/bite/land
-  hull.update(dt, { atSea: !berthed, storm: weather.storm }); // hull wears in storms at sea
+  hull.update(dt, { atSea: !berthed, storm: weather.storm * diff.storm }); // hull wears in storms at sea
+  if (flashT > 0) { flashT -= dt; if (flashT <= 0) flashEl.style.display = 'none'; }
+  // whale strikes out on the crossing — a hazard while actually sailing
+  if (!berthed && nav.speed > 0.2 && !foundering) {
+    whaleTimer -= dt;
+    if (whaleTimer <= 0) { hull.damage(15 * diff.whale); flashMsg('🐋 A whale strikes the hull!'); whaleTimer = 26 + Math.random() * 26; }
+  } else whaleTimer = Math.max(whaleTimer, 12);
   if (!skiffOwned && quests.flags['skiff-built']) { // record the skiff you built
     skiffOwned = true; try { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); } catch {}
   }
