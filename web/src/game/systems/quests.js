@@ -35,7 +35,14 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
   function load() {
     try {
       const raw = localStorage.getItem(persistKey);
-      if (raw) Object.assign(state, JSON.parse(raw));
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p.active !== undefined) state.active = p.active;
+        if (typeof p.step === 'number') state.step = p.step;
+        // merge INTO the existing flags object so the exposed `flags` reference
+        // (window.brig.quests.flags, gather's skiff-built check) stays live
+        if (p.flags) Object.assign(state.flags, p.flags);
+      }
     } catch {}
     refreshHUD();
     return state.active;

@@ -253,7 +253,16 @@ punishing crossing).
     Harsh clears the skiff + cargo and washes you back to Sevilla on foot;
     Standard loses cargo; Forgiving tows you home. Verified: Harsh founder wipes
     skiff+cargo, resets hull, respawns berthed at Sevilla, no soft-lock.
-11. **Polish + QA pass** across the whole journey.  ← final step
+11. **Polish + QA pass** across the whole journey.  ✅ DONE — full end-to-end QA
+    drive-through passes (10/10): arrive→Harbourmaster→Triana→gather→lay keel→
+    reload to the skiff→fish→repair at the slipway→pick difficulty→founder→
+    respawn; zero real console errors. (Fixed a quests.load() bug that replaced
+    the flags object, leaving the exposed skiff-built reference stale on reload.)
+
+**✅ PHASE 3 COMPLETE — the game is feature-complete & playable end-to-end.**
+Beautiful (grounded-stylized PBR) and a full progression loop: arrive a nobody →
+quests + trade + gather → build & sail your own skiff → fish + provision →
+dare the roguelike Atlantic crossing → lose it all or make the Indies.
 
 ### Orchestration
 - **Loops** drive phase-by-phase progress (one verified, committed feature per
