@@ -44,6 +44,7 @@ import { createQuests } from './systems/quests.js';
 import { createGather } from './systems/gather.js';
 import { createFishing } from './systems/fishing.js';
 import { createHull } from './systems/hull.js';
+import { createWaypoint } from './systems/waypoint.js';
 import { tier, loadDifficulty, saveDifficulty, TIERS } from './config/difficulty.js';
 import { createSettings } from './ui/settings.js';
 import { initPhysics } from './core/physics.js';
@@ -141,7 +142,7 @@ let diff = tier(loadDifficulty());
 // until sign-in (guests stay localStorage-only)
 let stateKey = null;
 
-// The world (Hispaniola ahead, Sevilla astern) lives under a group whose
+// The world (Las Verdías ahead, Valdara astern) lives under a group whose
 // transform is the INVERSE of the ship's world pose. The ship stays fixed at
 // the origin pointing north — so its deck is a clean static physics collider —
 // while the world slides and turns past it as you sail. (A moving deck would
@@ -265,7 +266,7 @@ const purse = createPurse(inventory);
 // vessel hull condition (0-100): storms + pirate hits wear it; repaired with
 // timber+pitch; at 0 you founder (full loss rule lands with difficulty next)
 const hull = createHull({ persistKey: 'brig:hull:' + _ident.key, onFounder: () => founder() });
-// open ocean — well clear of Sevilla (the start) and Santo Domingo. Shared by
+// open ocean — well clear of Valdara (the start) and Puerto Dorado. Shared by
 // the pirate spawn AND the whale hazard, so neither can strike you just outside
 // port the moment you cast off.
 const inOpenWater = () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500;
@@ -292,8 +293,8 @@ document.body.appendChild(flashEl);
 let flashT = 0;
 function flashMsg(t) { flashEl.textContent = t; flashEl.style.display = 'block'; flashT = 2.6; }
 
-function respawnSevilla() {
-  const h = harbours.find((x) => x.name === 'Sevilla') || harbours[1];
+function respawnValdara() {
+  const h = harbours.find((x) => x.name === 'Valdara') || harbours[1];
   nav.speed = 0; nav.heading = h.approachYaw; // kill any way carried from the crossing
   berthCooldown = 0;
   berth(h); // berth directly (don't lean on the proximity loop) — sets pose, colliders, ashore
@@ -314,12 +315,13 @@ function founder() {
   if (rule === 'all') { try { localStorage.removeItem('brig:skiffOwned:' + _ident.key); localStorage.setItem('brig:vessel:' + _ident.key, 'nao'); } catch {} skiffOwned = false; }
   combat.reset(); // clear any live enemy + queued balls so the respawn isn't hit again
   hull.reset();
-  respawnSevilla();
+  respawnValdara();
+  spawnAshore(); // wash up among the people of Valdara, not alone on the wreck
   pushPlayerState(); // persist the loss to the account (hull/cargo/vessel)
   setTimeout(() => {
     founderVeil.style.background = 'rgba(6,10,18,0)';
     setTimeout(() => { founderVeil.style.display = 'none'; foundering = false; }, 800);
-    objective.set('Wrecked, ashore in Sevilla', rule === 'all' ? 'Build a new skiff at the Triana shipwright.' : 'Repair, provision, and brave the crossing again.');
+    objective.set('Wrecked, ashore in Valdara', rule === 'all' ? 'Build a new skiff at the Ribalta shipwright.' : 'Repair, provision, and brave the crossing again.');
   }, 2600);
 }
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
@@ -385,7 +387,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE') return;
   if (intro.active || dialogue.isOpen || inscribe.isOpen) return; // don't grab the helm mid-intro/conversation
   if (mode === 'walk' && player.position.distanceTo(ship.helm) < 3.5) {
-    if (!canHelm()) { hint.textContent = '⚓ The Crown’s ship — you cannot take her helm. Build your own skiff at the Triana shipwright.'; return; }
+    if (!canHelm()) { hint.textContent = '⚓ The Crown’s ship — you cannot take her helm. Build your own skiff at the Ribalta shipwright.'; return; }
     endTalk(); // safety: clear any lingering talk framing before the helm camera takes over
     mode = 'helm'; moveTarget = null; player.setVisible(false); orbit.setRadius(CAM.helm);
   } else if (mode === 'helm') {
@@ -503,6 +505,19 @@ function designToScene(dx, dz, dy) {
   return { x: v.x, y: v.y, z: v.z };
 }
 
+// step the player straight into the town plaza, a couple of paces in front of
+// the Harbourmaster, facing him — so you START among people (and likewise after
+// a wreck). Used at Valdara, where the spine begins. Call only once berthed.
+function spawnAshore() {
+  const here = designToScene(6, 9.5);   // just in front of the Harbourmaster's patch (6,12)
+  if (!here) return;
+  const look = designToScene(6, 13) || here;
+  player.teleport(here.x, here.y + 1.1, here.z);
+  player.setFacing(Math.atan2(look.x - here.x, look.z - here.z));
+  mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
+  moveTarget = null;
+}
+
 function berth(h) {
   if (berthed) return;
   berthed = true; activeHarbour = h;
@@ -603,7 +618,7 @@ function updateWalk(dt) {
       hint.textContent = `Ashore at ${port} — press T to trade at the market · return to the helm to cast off`;
     }
   } else if (player.position.distanceTo(ship.helm) < 3.5) {
-    if (!canHelm()) hint.textContent = '⚓ The Crown’s ship — build your own skiff at the Triana shipwright to set sail';
+    if (!canHelm()) hint.textContent = '⚓ The Crown’s ship — build your own skiff at the Ribalta shipwright to set sail';
     else hint.textContent = berthed ? 'Press E to take the helm · W to cast off' : 'Press E to take the helm';
   } else if (nearNpc) hint.textContent = `Press F to speak with ${nearNpc.name}`;
   else hint.textContent = berthed ? 'Walk forward over the gangway to go ashore' : 'WASD/click move · Space jump · Shift run · R guns · B bell';
@@ -683,6 +698,24 @@ const fishing = createFishing({
 // settings — pick the crossing's difficulty tier (persisted)
 createSettings({ tiers: TIERS, current: loadDifficulty(), onPick: (t) => { diff = tier(t); saveDifficulty(t); } });
 
+// waypoint guidance — the 3D "shiny" beacon + an on-screen pointer to the
+// current objective (resolved each frame from the active quest step)
+const waypoint = createWaypoint({ scene, camera });
+function updateWaypoint(dt, t) {
+  let tgt = null;
+  if (berthed) {
+    const w = quests.currentTarget();
+    if (w && w.kind === 'reach' && activeHarbour && activeHarbour.name === w.harbour) {
+      tgt = designToScene(w.dx, w.dz);
+    } else if (w && w.kind === 'talk') {
+      const npc = townsfolk.byName(w.name);
+      if (npc) tgt = { x: npc.base.x, y: npc.base.y, z: npc.base.z };
+    }
+  }
+  waypoint.setTarget(tgt);
+  waypoint.update(dt, t);
+}
+
 // push the account's progression to the cloud (quests + hull + vessel). No-op
 // for guests (stateKey null) and offline. Called on the events that change it:
 // sign-in seed, foundering, building the skiff, and tab close.
@@ -705,7 +738,7 @@ window.brig = {
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
-  // jump to just off a port (default Santo Domingo), ready to auto-berth
+  // jump to just off a port (default Puerto Dorado), ready to auto-berth
   approachHarbour(name) {
     const h = harbours.find((x) => x.name === name) || harbours[0];
     this.setShip(h.worldPoint.x - Math.sin(h.approachYaw) * 38, h.worldPoint.z - Math.cos(h.approachYaw) * 38, h.approachYaw);
@@ -720,9 +753,10 @@ window.brig = {
   setAdmin(v) { isAdmin = !!v; try { localStorage.setItem('brig:admin', v ? '1' : '0'); } catch {} },
 };
 
-// start the voyage berthed at Sevilla — you begin in port, step ashore into the
-// city, then take the helm and cast off when you're ready to cross
-berth(harbours.find((h) => h.name === 'Sevilla') || harbours[1]);
+// start the voyage at Valdara — berth, then step straight into the plaza among
+// the townsfolk (the intro cinematic, if it runs, sweeps over you there)
+berth(harbours.find((h) => h.name === 'Valdara') || harbours[1]);
+spawnAshore();
 // the opening: first visit gets name entry + a cinematic, then the spine quest
 // starts (via onReady); returning players skip in and we restore their quest HUD.
 // If a returning player has no quest state and hasn't yet built a skiff (i.e.
@@ -777,6 +811,7 @@ function frame(now) {
   quests.update(dt, player.position); // advance reach/have quest triggers
   gather.update(dt);                   // gather-point prompts + cooldowns
   fishing.update(dt);                  // cast/bite/land
+  updateWaypoint(dt, t);               // the beacon + on-screen pointer to the objective
   hull.update(dt, { atSea: !berthed, storm: weather.storm * diff.storm }); // hull wears in storms at sea
   if (flashT > 0) { flashT -= dt; if (flashT <= 0) flashEl.style.display = 'none'; }
   // whale strikes out on the crossing — a hazard only in open water (like the

@@ -1,8 +1,8 @@
 // The opening — making the start feel like entering a world, not loading a demo.
 // First visit only (persists a seen-once flag): a name-entry card, then a short
-// letterbox cinematic that sweeps over the Sevilla quay, then it hands you the
+// letterbox cinematic that sweeps over the Valdara quay, then it hands you the
 // first objective and a proximity-driven onboarding guide (find the
-// harbourmaster -> cross to Triana -> reach the shipwright). Returning players
+// harbourmaster -> cross to Ribalta -> reach the shipwright). Returning players
 // skip straight in. Cheap DOM + a self-contained rAF for the camera move.
 
 import { setHandle } from '../player/identity.js';
@@ -60,14 +60,14 @@ export function createIntro({ orbit, onReady, onName }) {
     const yaw0 = orbit.yaw;
     const t0 = performance.now();
     const DUR = 4200;
-    say('Sevilla — where every voyage to the New World begins.');
+    say('Valdara — where every voyage to the New World begins.');
     const tick = (now) => {
       const k = Math.min(1, (now - t0) / DUR);
       const e = 1 - Math.pow(1 - k, 3); // ease-out
       orbit.setYaw(yaw0 + 0.9 * e);                 // slow establishing orbit
       orbit.setRadius(58 - (58 - 13) * e);          // sweep down to the walk view
       orbit.setPitch(1.0 - (1.0 - 0.42) * e);
-      if (k > 0.5 && caption.textContent.startsWith('Sevilla')) say('Make your fortune ashore — and earn your passage across the sea.');
+      if (k > 0.5 && caption.textContent.startsWith('Valdara')) say('Make your fortune ashore — and earn your passage across the sea.');
       if (k < 1) requestAnimationFrame(tick);
       else {
         say(''); setBars('0');

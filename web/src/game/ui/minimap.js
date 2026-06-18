@@ -1,5 +1,5 @@
 // Voyage minimap — a small chart showing where you are on the crossing relative
-// to Sevilla and Santo Domingo, with a heading arrow and a progress readout.
+// to Valdara and Puerto Dorado, with a heading arrow and a progress readout.
 // The map is tall and thin (an ocean-spanning route), so it reads as a strip
 // you work your way up as you sail west.
 

@@ -23,12 +23,12 @@ const TREES = {
   'Maestre Alvarado': {
     start: 'start',
     tree: {
-      start: { text: 'We make for Hispaniola. The ship answers well and the company is sound.', choices: [
+      start: { text: 'We make for Las Verdías. The ship answers well and the company is sound.', choices: [
         { label: 'How long until we make landfall?', to: 'eta' },
         { label: 'What do we carry?', to: 'cargo' },
         { label: 'Steady on, Maestre.', to: null },
       ] },
-      eta: { text: 'Hold this heading and we raise Santo Domingo by the forenoon watch — wind willing.', choices: [
+      eta: { text: 'Hold this heading and we raise Puerto Dorado by the forenoon watch — wind willing.', choices: [
         { label: 'And if the wind fails?', to: 'wind' },
         { label: 'Understood.', to: null },
       ] },
@@ -77,7 +77,7 @@ export function createCrew(scene, ship, opts = {}) {
   // (a solo skiff carries no company)
   const STATIONS = opts.solo ? [] : [
     { p: [1.4, D + 1.2, -8.6], ry: 0.2, role: 'captain', name: 'Maestre Alvarado', title: 'Ship’s Master',
-      lines: ['We make for Hispaniola. Hold this heading and we raise Santo Domingo by the forenoon watch.'] },
+      lines: ['We make for Las Verdías. Hold this heading and we raise Puerto Dorado by the forenoon watch.'] },
     { p: [0, D + 1.2, -7.6], ry: 0, role: 'sailor', name: 'Helmsman Brito', title: 'At the Helm',
       lines: ['Steady as she goes. The wheel answers slow when the hold is heavy.'] },
     { p: [-2.2, D, 1.5], ry: Math.PI * 0.55, role: 'conquistador', name: 'Don Ferrante', title: 'Conquistador',

@@ -15,10 +15,10 @@ import { listLore, addLore } from '../../net/lore.js';
 
 // founding inscriptions so the courtyard is never empty (offline / fresh DB)
 const SEED = [
-  { title: 'The Founding of Santo Domingo', author_handle: 'Fray Bartolomé',
+  { title: 'The Founding of Puerto Dorado', author_handle: 'Fray Bartolomé',
     body: 'On this shore the first stone was laid, that those who cross the Ocean Sea might have a haven.' },
   { title: 'The First Crossing', author_handle: 'Maestre Alvarado',
-    body: 'Forty days from Sevilla, the lookout cried land. We had not lost a soul.' },
+    body: 'Forty days from Valdara, the lookout cried land. We had not lost a soul.' },
 ];
 
 const STONE = pbrMaterial(0x8f897c);

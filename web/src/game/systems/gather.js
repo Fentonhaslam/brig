@@ -1,6 +1,6 @@
 // Gathering + the shipwright's build. Located interactions in the Andalusian
 // region: stand near a gather point and press G to harvest a material (with a
-// short cooldown + a pickup toast), or near the Triana slipway press G to lay
+// short cooldown + a pickup toast), or near the Ribalta slipway press G to lay
 // your skiff's keel once you hold the materials. Everything routes through the
 // persisted inventory and can complete 'have'/'flag' quest steps.
 //
@@ -12,10 +12,10 @@ export const SKIFF_RECIPE = { timber: 8, canvas: 3, rope: 4, pitch: 2 };
 // patching the hull at the slipway costs less
 export const REPAIR_RECIPE = { timber: 2, pitch: 1 };
 
-// gather + build points, in Sevilla-region design coords (Triana + campiña are
-// part of the Sevilla harbour build)
+// gather + build points, in Valdara-region design coords (Ribalta + campiña are
+// part of the Valdara harbour build)
 const POINTS = {
-  Sevilla: [
+  Valdara: [
     { dx: -42, dz: 98, r: 6.5, item: 'timber', verb: 'fell timber', cd: 0.9 },
     { dx: -36, dz: 110, r: 6.5, item: 'timber', verb: 'fell timber', cd: 0.9 },
     { dx: -74, dz: 50, r: 5.5, item: 'canvas', verb: 'cut sailcloth at the chandler', cd: 0.9 },

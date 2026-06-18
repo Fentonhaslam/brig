@@ -72,7 +72,7 @@ export const ROLES = {
   gunner:       { skin: 0xb07746, armor: 0x4a4540, cloth: 0x3a3530, accent: 0x7a2a22, boot: 0x2a2420, hat: 'bandana', hatColor: 0x8a2a22, beard: 0x2a2018 },
   sailor:       { skin: 0xc98d63, armor: 0x6a7d92, cloth: 0x556270, accent: 0xb8a9bd, boot: 0x3a2c1e, hat: 'cap', hatColor: 0x44525e, beard: 0 },
   topman:       { skin: 0xc08152, armor: 0x8a7a5a, cloth: 0x7a6a4a, accent: 0x9c3a2a, boot: 0x3a2c1e, hat: 'bandana', hatColor: 0x5a6a4a, beard: 0 },
-  // shore folk — the people of Sevilla and the colony
+  // shore folk — the people of Valdara and the colony
   friar:        { skin: 0xc08152, armor: 0x4a3826, cloth: 0x4a3826, accent: 0x6b5a3a, boot: 0x2a1c12, hat: 'none', beard: 0x3a2c1e },
   merchant:     { skin: 0xc98d63, armor: 0x33283f, cloth: 0x2a2038, accent: 0xc9a23a, boot: 0x2a1c12, hat: 'cap', hatColor: 0x241b30, beard: 0x2a1d12 },
   matron:       { skin: 0xd1a07a, armor: 0x7a3a4a, cloth: 0x6a3242, accent: 0xe8dcc0, boot: 0x3a2c1e, hat: 'bandana', hatColor: 0xe8dcc0, beard: 0 },

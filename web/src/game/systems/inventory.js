@@ -16,7 +16,7 @@ const CATALOG = {
   oil:     { name: 'Olive Oil',       icon: '🫒' },
   biscuit: { name: "Ship's Biscuit",  icon: '🍞' },
   fish:    { name: 'Fresh Fish',      icon: '🐟' },
-  cloth:   { name: 'Castilian Cloth', icon: '🧵' },
+  cloth:   { name: 'Castaran Cloth', icon: '🧵' },
   tools:   { name: 'Iron Tools',      icon: '🔨' },
   timber:  { name: 'Timber',          icon: '🪵' },
   canvas:  { name: 'Sailcloth',       icon: '⛵' },

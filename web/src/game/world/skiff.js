@@ -1,5 +1,5 @@
 // The player's first boat — a little single-mast sailing skiff, built at the
-// Triana shipwright's. Tiny, open and solo: no crew, no castles, no hold. It
+// Ribalta shipwright's. Tiny, open and solo: no crew, no castles, no hold. It
 // exposes the SAME interface as createShip() (root, deckY, length, beam, sails,
 // wheel, helm, colliders, setSails, update, set*Color) so main.js can sail it
 // at the origin in place of the great nao. Lighter and faster to turn — but

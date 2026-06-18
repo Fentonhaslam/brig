@@ -1,16 +1,16 @@
 // The market. Each port prices goods differently — European wares (wine, oil,
-// cloth, tools) are cheap in Sevilla and dear in the Indies; Indies goods (gold,
-// spice) are cheap in Santo Domingo and dear in Sevilla. So the voyage pays:
+// cloth, tools) are cheap in Valdara and dear in the Indies; Indies goods (gold,
+// spice) are cheap in Puerto Dorado and dear in Valdara. So the voyage pays:
 // buy low at one end, sell high at the other. Trades move coin + goods in the
 // inventory (which persists). Open with the ⚖ button or T while berthed.
 
 const PRICES = {
   // good: [buy price, sell price]
-  Sevilla: {
+  Valdara: {
     wine: [8, 6], oil: [10, 7], biscuit: [4, 3], cloth: [14, 10],
     tools: [20, 15], timber: [6, 4], spice: [90, 70], gold: [140, 110],
   },
-  'Santo Domingo': {
+  'Puerto Dorado': {
     wine: [16, 12], oil: [18, 14], biscuit: [8, 6], cloth: [26, 20],
     tools: [34, 26], timber: [10, 7], spice: [30, 22], gold: [55, 42],
   },
@@ -50,7 +50,7 @@ export function createMarket({ inventory, getPort }) {
     const port = getPort(); const tbl = port && PRICES[port];
     if (!tbl) {
       panel.innerHTML = `<div style="color:#e8b860;font:600 15px system-ui;letter-spacing:1px;margin-bottom:8px">MARKET</div>`
-        + `<div style="opacity:.8;font-style:italic">Make port to trade — berth at Sevilla or Santo Domingo.</div>`
+        + `<div style="opacity:.8;font-style:italic">Make port to trade — berth at Valdara or Puerto Dorado.</div>`
         + `<div style="color:#9a8a66;font:11px system-ui;text-align:center;margin-top:14px">T or ⚖ to close</div>`;
       return;
     }

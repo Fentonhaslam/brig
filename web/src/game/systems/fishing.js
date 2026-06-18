@@ -9,9 +9,9 @@
 
 // riverside / coast fishing spots, in each harbour's design space
 const POINTS = {
-  Sevilla: [{ dx: -48, dz: 28 }, { dx: -44, dz: 18 }, { dx: -52, dz: 40 }], // Triana riverbank
-  'Sanlúcar': [{ dx: -12, dz: 4 }, { dx: 14, dz: 6 }, { dx: 0, dz: 2 }],     // the coast
-  'Santo Domingo': [{ dx: -9, dz: 6 }, { dx: 9, dz: 8 }],
+  Valdara: [{ dx: -48, dz: 28 }, { dx: -44, dz: 18 }, { dx: -52, dz: 40 }], // Ribalta riverbank
+  'Bocamar': [{ dx: -12, dz: 4 }, { dx: 14, dz: 6 }, { dx: 0, dz: 2 }],     // the coast
+  'Puerto Dorado': [{ dx: -9, dz: 6 }, { dx: 9, dz: 8 }],
 };
 const SPOT_R = 6;
 

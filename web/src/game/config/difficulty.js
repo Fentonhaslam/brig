@@ -6,7 +6,7 @@
 //   pirate  — multiplier on a pirate cannonball's hull damage
 //   whale   — multiplier on a whale-strike's hull damage
 //   loss    — what foundering costs: 'towed' (keep all), 'cargo' (lose cargo,
-//             keep boat), 'all' (lose boat + cargo, back to Sevilla on foot)
+//             keep boat), 'all' (lose boat + cargo, back to Valdara on foot)
 
 export const TIERS = {
   forgiving: { label: 'Forgiving', storm: 0.5, pirate: 0.55, whale: 0.5, loss: 'towed' },

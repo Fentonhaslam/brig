@@ -16,10 +16,10 @@ const QUESTS = {
   berth: {
     name: 'A Berth of Your Own',
     steps: [
-      { id: 'meet-master', title: 'Speak with the Harbourmaster', hint: 'He keeps the Sevilla quay — press F to speak.', trigger: { talk: 'Harbourmaster Quintero' } },
-      { id: 'to-triana', title: 'Cross the Puente de Barcas into Triana', hint: 'The shipwrights and chandlers keep the far bank.', trigger: { reach: { harbour: 'Sevilla', dx: -38, dz: 18, r: 8 } } },
-      { id: 'meet-wright', title: "Find the shipwright's slipway in Triana", hint: 'His half-built hulls line the river quay.', trigger: { reach: { harbour: 'Sevilla', dx: -60, dz: 44, r: 9 }, reward: { coin: 25 } } },
-      { id: 'gather', title: 'Gather timber ×8, canvas ×3, rope ×4 & pitch ×2', hint: 'Timber in the wood beyond the gate; canvas & rope in Triana; pitch by the quay.', trigger: { have: { timber: 8, canvas: 3, rope: 4, pitch: 2 } } },
+      { id: 'meet-master', title: 'Speak with the Harbourmaster', hint: 'He keeps the Valdara quay — press F to speak.', trigger: { talk: 'Harbourmaster Quintero' } },
+      { id: 'to-triana', title: 'Cross the Puente Viejo into Ribalta', hint: 'The shipwrights and chandlers keep the far bank.', trigger: { reach: { harbour: 'Valdara', dx: -38, dz: 18, r: 8 } } },
+      { id: 'meet-wright', title: "Find the shipwright's slipway in Ribalta", hint: 'His half-built hulls line the river quay.', trigger: { reach: { harbour: 'Valdara', dx: -60, dz: 44, r: 9 }, reward: { coin: 25 } } },
+      { id: 'gather', title: 'Gather timber ×8, canvas ×3, rope ×4 & pitch ×2', hint: 'Timber in the wood beyond the gate; canvas & rope in Ribalta; pitch by the quay.', trigger: { have: { timber: 8, canvas: 3, rope: 4, pitch: 2 } } },
       { id: 'build', title: 'Bring the materials to the shipwright to lay your keel', hint: 'Your skiff begins on the stocks. (Shipwright build — coming next.)', trigger: { flag: 'skiff-built' } },
     ],
   },
@@ -77,7 +77,7 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     state.step += 1;
     if (state.step >= q.steps.length) {
       // quest complete (for now the spine ends at the build step until Phase 2/3)
-      objective.set(`✓ ${q.name}`, 'Your voyage continues — provision at Sanlúcar and dare the crossing.');
+      objective.set(`✓ ${q.name}`, 'Your voyage continues — provision at Bocamar and dare the crossing.');
       state.active = null; state.step = 0;
     } else {
       refreshHUD();
@@ -130,8 +130,18 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     save(); refreshHUD();
   }
 
+  // where the current step wants you to go, for the on-screen waypoint + beacon.
+  // talk → an NPC by name; reach → a design point in a harbour; else no marker.
+  function currentTarget() {
+    const s = curStep(); if (!s) return null;
+    const t = s.trigger;
+    if (t.talk) return { kind: 'talk', name: t.talk };
+    if (t.reach) return { kind: 'reach', harbour: t.reach.harbour, dx: t.reach.dx, dz: t.reach.dz };
+    return null;
+  }
+
   return {
-    start, notify, update, load, save, flag, setKey, snapshot, restore,
+    start, notify, update, load, save, flag, setKey, snapshot, restore, currentTarget,
     get active() { return state.active; },
     get step() { return state.step; },
     get stepId() { const s = curStep(); return s && s.id; },
