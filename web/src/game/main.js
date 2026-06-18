@@ -735,6 +735,7 @@ window.brig = {
   setShip(x, z, yaw) { shipPos.x = x; shipPos.z = z; if (yaw != null) shipYaw = yaw; syncWorld(); },
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, townsfolk, peers, dayNight,
+  get gfx() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }; },
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),

@@ -40,40 +40,49 @@ export function createWaypoint({ scene, camera }) {
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.12; group.add(ring);
 
   // --- the on-screen pointer ---
+  // Positioned ONLY via CSS `transform` (compositor, no layout) and updated only
+  // when a value actually changes — so tracking the target every frame while you
+  // walk never forces a synchronous reflow (the thing that made walking jank).
   const ptr = document.createElement('div');
   ptr.style.cssText = 'position:fixed;left:0;top:0;z-index:57;display:none;pointer-events:none;'
-    + 'width:46px;height:46px;margin:-23px 0 0 -23px;text-align:center';
+    + 'width:46px;height:46px;margin:-23px 0 0 -23px;text-align:center;will-change:transform';
   ptr.innerHTML = '<div id="wp-arrow" style="font:700 26px system-ui;color:#ffd36a;line-height:46px;'
-    + 'text-shadow:0 2px 6px rgba(0,0,0,.85);transition:transform .08s linear">▲</div>'
+    + 'text-shadow:0 2px 6px rgba(0,0,0,.85);will-change:transform">▲</div>'
     + '<div id="wp-dist" style="position:absolute;left:50%;top:46px;transform:translateX(-50%);'
     + 'font:700 11px system-ui;color:#ffe6a8;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.9)"></div>';
   document.body.appendChild(ptr);
   const arrowEl = ptr.querySelector('#wp-arrow');
   const distEl = ptr.querySelector('#wp-dist');
 
+  // cache the viewport size (read on resize, never per frame)
+  let W = window.innerWidth, H = window.innerHeight;
+  window.addEventListener('resize', () => { W = window.innerWidth; H = window.innerHeight; });
+
   let target = null;
+  let shown = false;
   const _v = new Vector3();
+  const _d = new Vector3();
+  // last-written DOM state, so we only touch the DOM on change
+  let lastTx = null, lastTy = null, lastRot = null, lastGlyph = null, lastDist = -1;
 
   function setTarget(v) {
-    const changed = !!v !== !!target;
     target = v || null;
     group.visible = !!target;
-    ptr.style.display = target ? 'block' : 'none';
     if (target) group.position.set(target.x, target.y || 0, target.z);
-    if (changed && target && gem.material) { /* pop on (re)appear handled in update */ }
+    if (!target && shown) { ptr.style.display = 'none'; shown = false; }
   }
 
   function update(dt, t) {
     if (!target) return;
-    // animate the shiny
+    // animate the shiny (cheap; transforms on the GPU side)
     gem.rotation.y += dt * 1.6;
     gem.rotation.x += dt * 0.7;
     gem.position.y = 3 + Math.sin(t * 2.2) * 0.28;
-    const pulse = 1 + Math.sin(t * 2.2) * 0.1;
-    ring.scale.setScalar(pulse);
+    ring.scale.setScalar(1 + Math.sin(t * 2.2) * 0.1);
 
-    // project the target (a little above the gem) to screen space
-    const W = window.innerWidth, H = window.innerHeight;
+    if (!shown) { ptr.style.display = 'block'; shown = true; }
+
+    // project the target (a little above the gem) to screen
     _v.set(target.x, (target.y || 0) + 3.4, target.z).project(camera);
     const behind = _v.z > 1;
     let x = (_v.x * 0.5 + 0.5) * W;
@@ -81,33 +90,26 @@ export function createWaypoint({ scene, camera }) {
     const margin = 54;
     const onScreen = !behind && x >= margin && x <= W - margin && y >= margin && y <= H - margin;
 
-    const dist = Math.round(camera.position.distanceTo(_vDist(target)));
-    distEl.textContent = dist + ' paces';
-
+    let tx, ty, rot, glyph;
     if (onScreen) {
-      arrowEl.textContent = '▼'; // point down onto the target
-      arrowEl.style.transform = 'rotate(0deg)';
-      ptr.style.left = x + 'px';
-      ptr.style.top = (y - 26) + 'px';
+      glyph = '▼'; rot = 0; tx = x; ty = y - 26;
     } else {
-      // pin to the screen edge, chevron rotated toward the target
       let dx = x - W / 2, dy = y - H / 2;
       if (behind) { dx = -dx; dy = -dy; }
       const ang = Math.atan2(dy, dx);
-      const hx = (W / 2) - margin, hy = (H / 2) - margin;
-      const scale = Math.min(hx / (Math.abs(Math.cos(ang)) || 1e-3), hy / (Math.abs(Math.sin(ang)) || 1e-3));
-      const ex = W / 2 + Math.cos(ang) * scale;
-      const ey = H / 2 + Math.sin(ang) * scale;
-      arrowEl.textContent = '▲';
-      arrowEl.style.transform = `rotate(${ang + Math.PI / 2}rad)`;
-      ptr.style.left = ex + 'px';
-      ptr.style.top = ey + 'px';
+      const sc = Math.min((W / 2 - margin) / (Math.abs(Math.cos(ang)) || 1e-3), (H / 2 - margin) / (Math.abs(Math.sin(ang)) || 1e-3));
+      glyph = '▲'; rot = ang + Math.PI / 2; tx = W / 2 + Math.cos(ang) * sc; ty = H / 2 + Math.sin(ang) * sc;
     }
-  }
 
-  // distance uses the raw target point (not the projected one)
-  const _d = new Vector3();
-  function _vDist(tg) { return _d.set(tg.x, tg.y || 0, tg.z); }
+    // write only what changed, and only via transform (no layout)
+    const itx = Math.round(tx), ity = Math.round(ty);
+    if (itx !== lastTx || ity !== lastTy) { ptr.style.transform = `translate(${itx}px,${ity}px)`; lastTx = itx; lastTy = ity; }
+    if (glyph !== lastGlyph) { arrowEl.textContent = glyph; lastGlyph = glyph; }
+    const ideg = Math.round(rot * 57.2958);
+    if (ideg !== lastRot) { arrowEl.style.transform = `rotate(${ideg}deg)`; lastRot = ideg; }
+    const dist = Math.round(camera.position.distanceTo(_d.set(target.x, target.y || 0, target.z)));
+    if (dist !== lastDist) { distEl.textContent = dist + ' paces'; lastDist = dist; }
+  }
 
   return { setTarget, update };
 }
