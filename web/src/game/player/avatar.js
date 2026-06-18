@@ -30,6 +30,38 @@ function mat(hex) {
   return _mats.get(hex);
 }
 
+// Shared geometry — every figure is identical in shape (only material colour and
+// a few per-mesh scales vary), so one set of geometries serves the whole cast.
+// This removes ~28 BufferGeometry allocations per avatar (a crew + townsfolk =
+// hundreds) and means disposeAvatar() only has to free the per-instance outline
+// shells; the shared geometries below live for the page and are never disposed.
+const GEO = {
+  thigh: new CapsuleGeometry(0.115, 0.26, 3, 7),
+  shin: new CapsuleGeometry(0.1, 0.26, 3, 7),
+  foot: new BoxGeometry(0.18, 0.14, 0.34),
+  pelvis: new BoxGeometry(0.34, 0.22, 0.26),
+  torso: new CapsuleGeometry(0.21, 0.34, 4, 9),
+  sash: new BoxGeometry(0.46, 0.12, 0.32),
+  collar: new BoxGeometry(0.5, 0.12, 0.34),
+  armUpper: new CapsuleGeometry(0.085, 0.24, 3, 7),
+  armFore: new CapsuleGeometry(0.078, 0.22, 3, 7),
+  hand: new SphereGeometry(0.085, 7, 6),
+  neck: new CylinderGeometry(0.07, 0.08, 0.1, 7),
+  head: new SphereGeometry(0.18, 10, 8),
+  nose: new ConeGeometry(0.04, 0.1, 5),
+  eye: new SphereGeometry(0.032, 6, 5),
+  beard: new SphereGeometry(0.165, 9, 7),
+  morionDome: new SphereGeometry(0.2, 9, 6),
+  morionBrim: new CylinderGeometry(0.3, 0.32, 0.04, 12),
+  morionComb: new BoxGeometry(0.04, 0.16, 0.42),
+  plumeBrim: new CylinderGeometry(0.32, 0.32, 0.04, 12),
+  plumeCrown: new CylinderGeometry(0.19, 0.21, 0.2, 10),
+  plume: new ConeGeometry(0.06, 0.42, 6),
+  cap: new SphereGeometry(0.195, 9, 6),
+  bandanaDome: new SphereGeometry(0.19, 9, 6),
+  bandanaKnot: new ConeGeometry(0.05, 0.18, 5),
+};
+
 // role -> palette + headgear + facial hair
 export const ROLES = {
   player:       { skin: 0xc98d63, armor: 0x9aa3ad, cloth: 0x3a4a6b, accent: 0xb23a2c, boot: 0x4a3422, hat: 'morion', hatColor: 0x9aa3ad, beard: 0 },
@@ -70,11 +102,11 @@ export function makeAvatar(role = 'sailor') {
   function leg(side) {
     const j = new Group();
     j.position.set(side * 0.12, HIP_Y, 0);
-    const thigh = new Mesh(new CapsuleGeometry(0.115, 0.26, 3, 7), mat(P.cloth));
+    const thigh = new Mesh(GEO.thigh, mat(P.cloth));
     thigh.position.y = -0.2; j.add(thigh); withOutline(thigh, 0.028);
-    const shin = new Mesh(new CapsuleGeometry(0.1, 0.26, 3, 7), mat(P.boot));
+    const shin = new Mesh(GEO.shin, mat(P.boot));
     shin.position.y = -0.56; j.add(shin);
-    const foot = new Mesh(new BoxGeometry(0.18, 0.14, 0.34), mat(P.boot));
+    const foot = new Mesh(GEO.foot, mat(P.boot));
     foot.position.set(0, -0.82, 0.06); j.add(foot); withOutline(foot, 0.025);
     g.add(j);
     return j;
@@ -83,23 +115,23 @@ export function makeAvatar(role = 'sailor') {
   parts.legR = leg(1);
 
   // --- PELVIS + TORSO (rounded jerkin) ---
-  put(new BoxGeometry(0.34, 0.22, 0.26), P.cloth, 0, HIP_Y + 0.02, 0, true);
-  const torso = new Mesh(new CapsuleGeometry(0.21, 0.34, 4, 9), mat(P.armor));
+  put(GEO.pelvis, P.cloth, 0, HIP_Y + 0.02, 0, true);
+  const torso = new Mesh(GEO.torso, mat(P.armor));
   torso.position.y = 1.18; torso.scale.set(1, 1, 0.78); g.add(torso); withOutline(torso, 0.032);
   // sash / belt across the waist
-  put(new BoxGeometry(0.46, 0.12, 0.32), P.accent, 0, 1.0, 0);
+  put(GEO.sash, P.accent, 0, 1.0, 0);
   // collar / shoulder yoke
-  put(new BoxGeometry(0.5, 0.12, 0.34), P.cloth, 0, SHOULDER_Y, 0);
+  put(GEO.collar, P.cloth, 0, SHOULDER_Y, 0);
 
   // --- ARMS: shoulder joint Group, meshes hang downward; rotate to swing ---
   function arm(side) {
     const j = new Group();
     j.position.set(side * 0.3, SHOULDER_Y, 0);
-    const upper = new Mesh(new CapsuleGeometry(0.085, 0.24, 3, 7), mat(P.cloth));
+    const upper = new Mesh(GEO.armUpper, mat(P.cloth));
     upper.position.y = -0.17; j.add(upper); withOutline(upper, 0.026);
-    const fore = new Mesh(new CapsuleGeometry(0.078, 0.22, 3, 7), mat(P.skin));
+    const fore = new Mesh(GEO.armFore, mat(P.skin));
     fore.position.y = -0.46; j.add(fore);
-    const hand = new Mesh(new SphereGeometry(0.085, 7, 6), mat(P.skin));
+    const hand = new Mesh(GEO.hand, mat(P.skin));
     hand.position.y = -0.62; j.add(hand);
     g.add(j);
     return j;
@@ -108,32 +140,32 @@ export function makeAvatar(role = 'sailor') {
   parts.armR = arm(1);
 
   // --- NECK + HEAD ---
-  put(new CylinderGeometry(0.07, 0.08, 0.1, 7), P.skin, 0, 1.54, 0);
-  const head = put(new SphereGeometry(0.18, 10, 8), P.skin, 0, HEAD_Y, 0, true);
+  put(GEO.neck, P.skin, 0, 1.54, 0);
+  const head = put(GEO.head, P.skin, 0, HEAD_Y, 0, true);
   head.scale.set(0.96, 1.06, 1);
   // nose + eyes give it a face that reads at a glance
-  put(new ConeGeometry(0.04, 0.1, 5), P.skin, 0, HEAD_Y - 0.02, 0.17).rotation.x = Math.PI / 2;
-  for (const sx of [-1, 1]) put(new SphereGeometry(0.032, 6, 5), 0x1c140e, sx * 0.07, HEAD_Y + 0.03, 0.155);
+  put(GEO.nose, P.skin, 0, HEAD_Y - 0.02, 0.17).rotation.x = Math.PI / 2;
+  for (const sx of [-1, 1]) put(GEO.eye, 0x1c140e, sx * 0.07, HEAD_Y + 0.03, 0.155);
   if (P.beard) {
-    const b = put(new SphereGeometry(0.165, 9, 7), P.beard, 0, HEAD_Y - 0.06, 0.02);
+    const b = put(GEO.beard, P.beard, 0, HEAD_Y - 0.06, 0.02);
     b.scale.set(0.92, 0.7, 0.86);
   }
 
   // --- HEADGEAR ---
   if (P.hat === 'morion') {
-    put(new SphereGeometry(0.2, 9, 6), P.hatColor, 0, HEAD_Y + 0.08, 0).scale.set(1, 0.7, 1);
-    put(new CylinderGeometry(0.3, 0.32, 0.04, 12), P.hatColor, 0, HEAD_Y + 0.02, 0).scale.z = 1.4;
-    put(new BoxGeometry(0.04, 0.16, 0.42), P.hatColor, 0, HEAD_Y + 0.2, 0, true); // comb crest
+    put(GEO.morionDome, P.hatColor, 0, HEAD_Y + 0.08, 0).scale.set(1, 0.7, 1);
+    put(GEO.morionBrim, P.hatColor, 0, HEAD_Y + 0.02, 0).scale.z = 1.4;
+    put(GEO.morionComb, P.hatColor, 0, HEAD_Y + 0.2, 0, true); // comb crest
   } else if (P.hat === 'plume') {
-    put(new CylinderGeometry(0.32, 0.32, 0.04, 12), P.hatColor, 0, HEAD_Y + 0.06, 0).scale.z = 1.25;
-    put(new CylinderGeometry(0.19, 0.21, 0.2, 10), P.hatColor, 0, HEAD_Y + 0.16, 0);
-    const plume = put(new ConeGeometry(0.06, 0.42, 6), P.plume || 0xb23a2c, 0.08, HEAD_Y + 0.34, -0.06);
+    put(GEO.plumeBrim, P.hatColor, 0, HEAD_Y + 0.06, 0).scale.z = 1.25;
+    put(GEO.plumeCrown, P.hatColor, 0, HEAD_Y + 0.16, 0);
+    const plume = put(GEO.plume, P.plume || 0xb23a2c, 0.08, HEAD_Y + 0.34, -0.06);
     plume.rotation.x = -0.5;
   } else if (P.hat === 'cap') {
-    put(new SphereGeometry(0.195, 9, 6), P.hatColor, 0, HEAD_Y + 0.06, 0).scale.set(1, 0.62, 1);
+    put(GEO.cap, P.hatColor, 0, HEAD_Y + 0.06, 0).scale.set(1, 0.62, 1);
   } else if (P.hat === 'bandana') {
-    put(new SphereGeometry(0.19, 9, 6), P.hatColor, 0, HEAD_Y + 0.04, 0).scale.set(1, 0.55, 1);
-    put(new ConeGeometry(0.05, 0.18, 5), P.hatColor, -0.14, HEAD_Y + 0.02, -0.1).rotation.z = 0.8; // knot tail
+    put(GEO.bandanaDome, P.hatColor, 0, HEAD_Y + 0.04, 0).scale.set(1, 0.55, 1);
+    put(GEO.bandanaKnot, P.hatColor, -0.14, HEAD_Y + 0.02, -0.1).rotation.z = 0.8; // knot tail
   }
 
   g.userData.parts = parts;
@@ -150,4 +182,14 @@ export function animateFigure(g, phase, intensity) {
   p.legR.rotation.x = -sw;
   p.armL.rotation.x = -sw * 0.9;
   p.armR.rotation.x = sw * 0.9;
+}
+
+// Free an avatar's GPU resources when it's removed for good (e.g. townsfolk on
+// cast-off). Only the inverted-hull outline shells own unique materials — the
+// body geometries (GEO) and colour materials (_mats) are shared across the whole
+// cast and must survive, so we dispose just the per-instance ShaderMaterials.
+export function disposeAvatar(node) {
+  node.traverse((o) => {
+    if (o.material && o.material.isShaderMaterial) o.material.dispose();
+  });
 }

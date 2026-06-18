@@ -43,6 +43,23 @@ function buildEnemyShip() {
   return g;
 }
 
+// free a whole subtree's GPU resources — the enemy ship builds its own
+// geometries, materials and detail textures each spawn, so they must be
+// disposed when she's removed (sunk / boarding / founder), or they leak.
+function disposeSubtree(root) {
+  root.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (m) {
+      for (const x of Array.isArray(m) ? m : [m]) {
+        if (x.map) x.map.dispose();
+        if (x.bumpMap) x.bumpMap.dispose();
+        x.dispose();
+      }
+    }
+  });
+}
+
 export function createCombat({ scene, physics, inventory, cannons, ship, getStorm, getBerthed, getOpenWater, onHit }) {
   let enemy = null;
   let spawnTimer = 25;
@@ -83,6 +100,26 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
     enemy = { root, hp: 6, maxHp: 6, t: Math.random() * 6, sink: 0, fireT: 5 };
   }
 
+  // remove + free the enemy ship (one helper so every removal disposes her)
+  function dropEnemy() {
+    if (!enemy) return;
+    scene.remove(enemy.root); disposeSubtree(enemy.root); enemy = null;
+  }
+  // clear all in-flight hostile cannonballs + their physics bodies
+  function clearHostile() {
+    for (const h of hostile) { scene.remove(h.m); try { physics.world.removeRigidBody(h.body); } catch {} }
+    hostile.length = 0;
+  }
+  // tear the fight down completely — called on founder so a respawn doesn't
+  // inherit a live enemy, queued balls, or a half-drained boarding meter
+  function reset() {
+    dropEnemy(); clearHostile();
+    playerHp = maxHp; flashV = 0; flash.style.opacity = '0';
+    spawnTimer = 35; // a beat of grace before the next sail can spawn one
+    hud.style.display = 'none'; hullHud.style.display = 'none';
+    toast.style.display = 'none'; toastT = 0;
+  }
+
   function loot() {
     inventory.add('coin', 60 + Math.floor(Math.random() * 90));
     inventory.add('gold', 1 + Math.floor(Math.random() * 3));
@@ -105,7 +142,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
       const goods = ['cloth', 'tools', 'wine', 'oil', 'spice', 'gold', 'timber', 'biscuit'].filter((g) => inventory.count(g) > 0);
       if (goods.length) { const g = goods[(Math.random() * goods.length) | 0]; inventory.take(g, Math.max(1, Math.ceil(inventory.count(g) * 0.3))); }
       playerHp = maxHp;
-      if (enemy) { scene.remove(enemy.root); enemy = null; }
+      dropEnemy();
       say('⚔ Boarded! Cargo lost.');
     }
   }
@@ -118,7 +155,9 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
 
     // hostile cannonballs in flight (continue even after the enemy is gone)
     for (let i = hostile.length - 1; i >= 0; i--) {
-      const h = hostile[i]; h.life -= dt;
+      const h = hostile[i];
+      if (!h) continue; // reset() (via a founder triggered by our own onHit) can empty this mid-loop
+      h.life -= dt;
       const p = h.body.translation(); h.m.position.set(p.x, p.y, p.z);
       // a generous sphere around the deck centre catches the shot however it
       // arcs in (aimed at the origin, so it passes close)
@@ -152,7 +191,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
       enemy.root.position.y -= dt * 1.6;
       enemy.root.rotation.z += dt * 0.35;
       hud.style.display = 'none';
-      if (enemy.sink > 3.2) { scene.remove(enemy.root); enemy = null; }
+      if (enemy.sink > 3.2) dropEnemy();
       return;
     }
 
@@ -187,7 +226,7 @@ export function createCombat({ scene, physics, inventory, cannons, ship, getStor
   }
 
   return {
-    update, spawn, get enemy() { return enemy; }, get playerHp() { return playerHp; },
+    update, spawn, reset, get enemy() { return enemy; }, get playerHp() { return playerHp; },
     dbg() { return { n: hostile.length, hp: playerHp, pos: hostile.map((h) => { const p = h.body.translation(); return [+p.x.toFixed(1), +p.y.toFixed(1), +p.z.toFixed(1)]; }) }; },
     testFire() { if (enemy) enemyFire(); },
   };

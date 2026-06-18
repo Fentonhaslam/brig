@@ -71,5 +71,9 @@ export function createFishing({ inventory, quests, sceneAt, getBerthedName, getP
     else prompt.style.display = 'none';
   }
 
-  return { update, get state() { return state; }, _bite: bite, _land: land };
+  // drop any in-progress cast (called on berth / cast-off so a line started at
+  // sea doesn't resolve into a fish while you're now standing in port)
+  function reset() { state = 'idle'; timer = 0; prompt.style.display = 'none'; }
+
+  return { update, reset, get state() { return state; }, _bite: bite, _land: land };
 }

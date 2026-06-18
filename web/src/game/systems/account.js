@@ -40,11 +40,19 @@ export function createAccount() {
   const show = () => { open = true; panel.style.display = 'block'; $('#ac-email').focus(); };
   const hide = () => { open = false; panel.style.display = 'none'; };
 
-  function setSignedIn(s) {
+  async function setSignedIn(s) {
     session = s; handle = handleOf(s);
     btn.textContent = '⚓ ' + handle;
     hide();
-    listeners.forEach((cb) => cb({ session, handle, userId: s.user.id }));
+    // server-authoritative admin flag (used for nao helm + lore moderation)
+    let isAdmin = false;
+    try {
+      const { data } = await supabase
+        .from('profiles').select('is_admin').eq('id', s.user.id).single();
+      isAdmin = !!(data && data.is_admin);
+    } catch {}
+    if (isAdmin) btn.textContent = '⚓ ' + handle + ' ✦';
+    listeners.forEach((cb) => cb({ session, handle, userId: s.user.id, isAdmin }));
   }
 
   btn.onclick = () => {
@@ -97,6 +105,7 @@ export function createAccount() {
 
   return {
     onSignIn(cb) { listeners.push(cb); if (session) cb({ session, handle, userId: session.user.id }); },
+    openSignIn() { if (!session) show(); },
     get session() { return session; },
     get handle() { return handle; },
   };

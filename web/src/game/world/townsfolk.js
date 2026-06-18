@@ -10,7 +10,7 @@
 // EXPORT: createTownsfolk(scene) -> { group, roster, populate(h, m), clear(), update(t,dt), nearest(p) }
 
 import { Group, Vector3 } from 'three';
-import { makeAvatar, animateFigure } from '../player/avatar.js';
+import { makeAvatar, animateFigure, disposeAvatar } from '../player/avatar.js';
 
 function linearTree(lines) {
   const tree = {};
@@ -127,7 +127,7 @@ export function createTownsfolk(scene) {
   const _v = new Vector3();
 
   function clear() {
-    for (const c of roster) group.remove(c.node);
+    for (const c of roster) { group.remove(c.node); disposeAvatar(c.node); }
     roster = [];
   }
 

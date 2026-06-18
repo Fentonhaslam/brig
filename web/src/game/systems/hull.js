@@ -8,8 +8,9 @@
 //   damage(n), repair(n), get hull(), get full(), set(n), reset() }
 
 export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
+  let pk = persistKey;
   let hull = 100;
-  try { const v = parseFloat(localStorage.getItem(persistKey)); if (v >= 0 && v <= 100) hull = v; } catch {}
+  try { const v = parseFloat(localStorage.getItem(pk)); if (v >= 0 && v <= 100) hull = v; } catch {}
   let saveT = 0;
   let foundered = false;
 
@@ -19,7 +20,7 @@ export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
     + 'padding:6px 14px;border-radius:10px;text-align:center;min-width:170px;pointer-events:none';
   document.body.appendChild(hud);
 
-  function save() { try { localStorage.setItem(persistKey, String(Math.round(hull))); } catch {} }
+  function save() { try { localStorage.setItem(pk, String(Math.round(hull))); } catch {} }
   function saveSoon() { saveT = 0.8; }
 
   function render() {
@@ -36,8 +37,17 @@ export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
     if (hull <= 0 && !foundered) { foundered = true; if (onFounder) onFounder(); }
   }
   function damage(n) { if (n > 0) { set(hull - n); saveSoon(); } }
-  function repair(n) { set(Math.min(100, hull + n)); save(); foundered = false; }
+  function repair(n) {
+    if (n <= 0) return;
+    set(Math.min(100, hull + n)); save();
+    if (hull > 0) foundered = false; // only clear the latch once she's actually afloat again
+  }
   function reset() { hull = 100; foundered = false; save(); render(); } // after foundering / a fresh boat
+
+  // account sync: re-point the save key (sign-in) + snapshot/restore the value
+  function setKey(k) { pk = k; }
+  function snapshot() { return Math.round(hull); }
+  function restore(v) { if (typeof v === 'number' && v >= 0 && v <= 100) { set(v); save(); } }
 
   function update(dt, { atSea = false, storm = 0 } = {}) {
     // storms gnaw at the hull while you're exposed at sea
@@ -48,5 +58,5 @@ export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
   }
 
   render();
-  return { update, damage, repair, set, reset, get hull() { return hull; }, get full() { return hull >= 100; }, get foundered() { return foundered; } };
+  return { update, damage, repair, set, reset, setKey, snapshot, restore, get hull() { return hull; }, get full() { return hull >= 100; }, get foundered() { return foundered; } };
 }

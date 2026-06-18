@@ -34,21 +34,48 @@ export function createInventory({ key, handle }) {
   let LSKEY = 'brig:inv:' + curKey;
   let items = loadLocal();
   let saveTimer = null;
+  let pullGen = 0;  // bumped per pull so a stale (superseded) response can't apply
+  let mutSeq = 0;   // bumped per local mutation so an in-flight pull won't clobber it
 
   function loadLocal() {
-    try { const raw = localStorage.getItem(LSKEY); if (raw) return JSON.parse(raw); } catch {}
+    try { const raw = localStorage.getItem(LSKEY); if (raw) return sanitize(JSON.parse(raw)); } catch {}
     return { ...START }; // first-ever load → starting provisions
   }
   function persistLocal() { try { localStorage.setItem(LSKEY, JSON.stringify(items)); } catch {} }
 
-  async function pullCloud() {
+  // coerce an untrusted blob (the inventories row is anon-writable) into a clean
+  // hold: known catalog goods only, non-negative integers, zeroes dropped.
+  function sanitize(obj) {
+    const out = {};
+    if (obj) for (const k of Object.keys(obj)) {
+      if (!CATALOG[k]) continue;
+      const n = Math.max(0, Math.floor(Number(obj[k]) || 0));
+      if (n) out[k] = n;
+    }
+    return out;
+  }
+  // carry the higher count of each good across two holds — used when a guest
+  // signs in, so neither the guest's nor the account's cargo is silently lost
+  // (and, unlike additive, it can't double-count on a repeated pull).
+  function mergeFrom(remote) {
+    const r = sanitize(remote);
+    for (const k of Object.keys(r)) items[k] = Math.max(items[k] || 0, r[k]);
+  }
+
+  async function pullCloud(merge = false) {
     if (!online) return;
+    const gen = ++pullGen;
+    const mut = mutSeq;
     try {
       const { data, error } = await supabase
         .from('inventories').select('items').eq('player_key', curKey).maybeSingle();
       if (error) return;                 // table missing / RLS → stay local
-      if (data && data.items && Object.keys(data.items).length) {
-        items = data.items; persistLocal(); render();
+      if (gen !== pullGen) return;       // a newer pull (key changed) supersedes us
+      const remote = data && data.items;
+      if (remote && Object.keys(remote).length) {
+        if (merge) { mergeFrom(remote); pushCloud(); }      // sign-in: keep both
+        else if (mut === mutSeq) items = sanitize(remote);  // same key: cloud is authoritative, unless we mutated meanwhile
+        persistLocal(); render();
       } else {
         pushCloud();                     // no row yet → seed it (carries guest cargo to the account)
       }
@@ -65,19 +92,26 @@ export function createInventory({ key, handle }) {
   }
 
   // switch saves to a signed-in account: keep the guest's current cargo, then
-  // reconcile with the account's stored hold (or seed it from what we have)
+  // MERGE with the account's stored hold (or seed it from what we have)
   function setAccount(userId, accountHandle) {
+    clearTimeout(saveTimer); saveTimer = null; // drop a pending guest-key push
     curKey = 'acct:' + userId;
     curHandle = accountHandle || curHandle;
     LSKEY = 'brig:inv:' + curKey;
     persistLocal();
-    pullCloud();
+    pullCloud(true);
   }
   function save() {
+    mutSeq++;
     persistLocal();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(pushCloud, 600); // debounce cloud writes
   }
+  // flush a pending cloud write immediately (tab close / hide) so a quick
+  // earn-then-leave isn't lost — otherwise the debounce can drop the last save.
+  function flush() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; pushCloud(); } }
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
 
   // --- API ---------------------------------------------------------------
   function add(id, n = 1) {

@@ -30,6 +30,8 @@ import { getIdentity } from './player/identity.js';
 import { createInventory } from './systems/inventory.js';
 import { createLore, createInscribePanel } from './systems/lore.js';
 import { createAccount } from './systems/account.js';
+import { createModerationPanel } from './ui/moderation.js';
+import { createStreamWelcome } from './ui/stream-welcome.js';
 import { createCannons } from './systems/cannons.js';
 import { createSpray } from './systems/spray.js';
 import { createCombat } from './systems/combat.js';
@@ -51,6 +53,7 @@ import { createCrew } from './world/crew.js';
 import { createTownsfolk } from './world/townsfolk.js';
 import { createPeers } from './player/peers.js';
 import { joinWorld } from '../net/presence.js';
+import { pullState, pushState } from '../net/state.js';
 
 const canvas = document.getElementById('c');
 const renderer = createRenderer(canvas);
@@ -124,14 +127,19 @@ const ship = vesselKind === 'skiff' ? createSkiff() : createShip();
 scene.add(ship.root);
 water.setShip(ship.beam, ship.length); // foam collar hugs the hull at the waterline
 
-// the grand nao is the Crown's — only admins/devs may take her helm. Ordinary
-// players sail the skiff they build. (Dev flag now; an account role later.)
+// the grand nao is the Crown's — only admins may take her helm. The flag is
+// resolved server-side from `profiles.is_admin` on sign-in (see account.onSignIn
+// below); localStorage `brig:admin=1` is kept as a dev/offline fallback only.
 let isAdmin = false;
 try { isAdmin = localStorage.getItem('brig:admin') === '1'; } catch {}
 const canHelm = () => vesselKind === 'skiff' || isAdmin;
 
 // crossing difficulty (persisted) — scales hull hazards + sets the founder rule
 let diff = tier(loadDifficulty());
+
+// the account key whose progression (quests/hull/vessel) is cloud-synced; null
+// until sign-in (guests stay localStorage-only)
+let stateKey = null;
 
 // The world (Hispaniola ahead, Sevilla astern) lives under a group whose
 // transform is the INVERSE of the ship's world pose. The ship stays fixed at
@@ -201,8 +209,10 @@ const minimap = createMinimap(built.places, () => ({ x: shipPos.x, z: shipPos.z,
 // --- physics + player ---
 const physics = await initPhysics();
 const shipBodies = ship.colliders.map((c) => physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z, c.rot));
-// the bow bulwark — removed while berthed so you can step onto the gangway
-const bowIdx = ship.colliders.findIndex((c) => c.hz < 0.5 && c.z > 5);
+// the bow bulwark — removed while berthed so you can step onto the gangway.
+// tagged explicitly per vessel (the old `z > 5` heuristic missed the skiff's
+// shorter hull, leaving its bow rail in place and walling players aboard).
+const bowIdx = ship.colliders.findIndex((c) => c.bow);
 let bowBody = shipBodies[bowIdx];
 const SPAWN = new Vector3(0, ship.deckY + 1.6, 3);
 const player = createPlayer(physics, scene, SPAWN);
@@ -213,7 +223,7 @@ const spray = createSpray(scene, ship);
 // run out the guns (R) + ring the bell (B)
 const cannons = createCannons(scene, physics, ship);
 window.addEventListener('keydown', (e) => {
-  if (dialogue.isOpen || inscribe.isOpen || player.swimming) return;
+  if (dialogue.isOpen || inscribe.isOpen || player.swimming || intro.active) return;
   if (e.code === 'KeyR') cannons.fire();
   else if (e.code === 'KeyB') cannons.ringBell();
 });
@@ -255,13 +265,16 @@ const purse = createPurse(inventory);
 // vessel hull condition (0-100): storms + pirate hits wear it; repaired with
 // timber+pitch; at 0 you founder (full loss rule lands with difficulty next)
 const hull = createHull({ persistKey: 'brig:hull:' + _ident.key, onFounder: () => founder() });
+// open ocean — well clear of Sevilla (the start) and Santo Domingo. Shared by
+// the pirate spawn AND the whale hazard, so neither can strike you just outside
+// port the moment you cast off.
+const inOpenWater = () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500;
 // enemy ships you can sink for loot (needs inventory + cannons)
 const combat = createCombat({
   scene, physics, inventory, cannons, ship,
   getStorm: () => weather.storm,
   getBerthed: () => berthed,
-  // only in open ocean — well clear of Sevilla (the start) and Santo Domingo
-  getOpenWater: () => shipPos.z > built.harbours[1].worldPoint.z + 700 && shipPos.z < built.harbours[0].worldPoint.z - 500,
+  getOpenWater: inOpenWater,
   onHit: () => hull.damage(12 * diff.pirate), // a pirate ball that lands gouges the hull
 });
 
@@ -281,9 +294,9 @@ function flashMsg(t) { flashEl.textContent = t; flashEl.style.display = 'block';
 
 function respawnSevilla() {
   const h = harbours.find((x) => x.name === 'Sevilla') || harbours[1];
+  nav.speed = 0; nav.heading = h.approachYaw; // kill any way carried from the crossing
   berthCooldown = 0;
-  shipPos.set(h.worldPoint.x - Math.sin(h.approachYaw) * h.bowGap, 0, h.worldPoint.z - Math.cos(h.approachYaw) * h.bowGap);
-  shipYaw = h.approachYaw; syncWorld();
+  berth(h); // berth directly (don't lean on the proximity loop) — sets pose, colliders, ashore
 }
 let foundering = false;
 function founder() {
@@ -299,8 +312,10 @@ function founder() {
     for (const id of ['cloth', 'tools', 'wine', 'oil', 'spice', 'gold', 'timber', 'biscuit', 'fish', 'canvas', 'rope', 'pitch', 'iron']) { const c = inventory.count(id); if (c) inventory.take(id, c); }
   }
   if (rule === 'all') { try { localStorage.removeItem('brig:skiffOwned:' + _ident.key); localStorage.setItem('brig:vessel:' + _ident.key, 'nao'); } catch {} skiffOwned = false; }
+  combat.reset(); // clear any live enemy + queued balls so the respawn isn't hit again
   hull.reset();
   respawnSevilla();
+  pushPlayerState(); // persist the loss to the account (hull/cargo/vessel)
   setTimeout(() => {
     founderVeil.style.background = 'rgba(6,10,18,0)';
     setTimeout(() => { founderVeil.style.display = 'none'; foundering = false; }, 800);
@@ -309,10 +324,47 @@ function founder() {
 }
 // optional, non-blocking sign-in — upgrades saves to a cross-device account
 const account = createAccount();
-account.onSignIn(({ session, handle: h, userId }) => {
+// admin moderation panel — Shift+M for admins. Hiding a stone here removes it
+// from the chronicle (RLS strips it from non-admin reads) and from the world.
+const moderation = createModerationPanel({
+  onHide: (entry) => lore.removeById(entry.id),
+});
+// stream arrival nudge — only shows when the page is opened via the Twitch
+// link (?stream=1 / #stream). Hides itself once the viewer signs in.
+const streamWelcome = createStreamWelcome({ onSignInClick: () => account.openSignIn() });
+account.onSignIn(async ({ session, handle: h, userId, isAdmin: serverAdmin }) => {
   inventory.setAccount(userId, h);  // cargo follows the account
   lore.setSession(session, h);      // inscriptions become permanent + world-shared
   refit.setKey('acct:' + userId);   // ship name/colours follow the account
+  world.identify({ handle: h, userId }); // peers see the account handle, not the guest one
+  if (serverAdmin) {                // server-authoritative — overrides localStorage
+    isAdmin = true;
+    try { localStorage.setItem('brig:admin', '1'); } catch {}
+  }
+  moderation.setAdmin(!!serverAdmin);
+  streamWelcome.hide();
+
+  // progression (quests/hull/vessel) follows the account too — re-key the local
+  // saves, then reconcile with the cloud: pull the account's stored progress if
+  // it exists, otherwise seed it from what this device has. No-ops gracefully
+  // offline / before the player_state table is applied.
+  const acctKey = 'acct:' + userId;
+  quests.setKey('brig:quests:' + acctKey);
+  hull.setKey('brig:hull:' + acctKey);
+  stateKey = acctKey;
+  const cloud = await pullState(acctKey);
+  if (cloud) {
+    quests.restore(cloud.quests);
+    hull.restore(cloud.hull);
+    if (cloud.vessel || cloud.skiffOwned) {
+      try {
+        if (cloud.vessel) localStorage.setItem('brig:vessel:' + _ident.key, cloud.vessel);
+        if (cloud.skiffOwned) { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); skiffOwned = true; }
+      } catch {}
+    }
+  } else {
+    pushPlayerState(); // seed the account from this device
+  }
 });
 const world = joinWorld({ handle, userId: guestId });
 world.onPeers((p) => peers.sync(p));
@@ -331,8 +383,10 @@ input.onClick((ray) => {
 // E toggles the helm when you're standing near the wheel
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyE') return;
+  if (intro.active || dialogue.isOpen || inscribe.isOpen) return; // don't grab the helm mid-intro/conversation
   if (mode === 'walk' && player.position.distanceTo(ship.helm) < 3.5) {
     if (!canHelm()) { hint.textContent = '⚓ The Crown’s ship — you cannot take her helm. Build your own skiff at the Triana shipwright.'; return; }
+    endTalk(); // safety: clear any lingering talk framing before the helm camera takes over
     mode = 'helm'; moveTarget = null; player.setVisible(false); orbit.setRadius(CAM.helm);
   } else if (mode === 'helm') {
     mode = 'walk'; player.setVisible(true); orbit.setRadius(CAM.walk);
@@ -384,10 +438,22 @@ function frameTalk(npc) {
   orbit.setRadius(CAM.talk);
 }
 
+// end a conversation: un-freeze the NPC and restore the walk camera. Called from
+// the walk loop when the dialogue closes AND when we leave walk mode (e.g. take
+// the helm) so the talk framing can never get stranded.
+function endTalk() {
+  if (talkingNpc) { talkingNpc.frozen = false; talkingNpc = null; }
+  orbit.setRadius(CAM.walk); orbit.setPitch(0.4);
+}
+
 // Space jumps on deck (to get up onto things), or clambers back aboard when
 // you're treading water alongside the hull
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
+  // don't swallow the space bar in a text field (name entry / inscribe), and
+  // don't jump during the intro
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (intro.active || tag === 'INPUT' || tag === 'TEXTAREA') return;
   e.preventDefault();
   if (player.swimming) {
     if (nearShipXZ()) { player.setSwim(false); swimT = 0; player.teleport(SPAWN.x, SPAWN.y, SPAWN.z); }
@@ -461,6 +527,7 @@ function berth(h) {
   player.teleport(0, ship.deckY + 1.6, ship.length * 0.4); // up by the bow / gangway
   purse.setMark(); // profit readout resets each time you make port
   ship.setSails(0.12);
+  fishing.reset(); // drop any line in progress from the crossing
 }
 
 function castOff() {
@@ -471,10 +538,11 @@ function castOff() {
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
   townsfolk.clear();
-  if (bowIdx >= 0 && !bowBody) { // restore the bow rail removed at berth (the nao has one; the skiff may not)
+  if (bowIdx >= 0 && !bowBody) { // restore the bow rail removed at berth
     const c = ship.colliders[bowIdx];
     bowBody = physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z);
   }
+  fishing.reset(); // drop any line in progress while berthed
 }
 
 function updateWalk(dt) {
@@ -511,7 +579,7 @@ function updateWalk(dt) {
     const np = talkingNpc.pos;
     camTarget.lerp(new Vector3((player.position.x + np.x) / 2, np.y + 1.1, (player.position.z + np.z) / 2), 0.18);
   } else {
-    if (talkingNpc) { talkingNpc.frozen = false; talkingNpc = null; orbit.setRadius(CAM.walk); orbit.setPitch(0.4); } // conversation ended
+    if (talkingNpc) endTalk(); // conversation ended
     camTarget.lerp(new Vector3(player.position.x, player.feetY + 1.3, player.position.z), 0.2);
   }
 
@@ -615,6 +683,18 @@ const fishing = createFishing({
 // settings — pick the crossing's difficulty tier (persisted)
 createSettings({ tiers: TIERS, current: loadDifficulty(), onPick: (t) => { diff = tier(t); saveDifficulty(t); } });
 
+// push the account's progression to the cloud (quests + hull + vessel). No-op
+// for guests (stateKey null) and offline. Called on the events that change it:
+// sign-in seed, foundering, building the skiff, and tab close.
+function pushPlayerState() {
+  if (!stateKey) return;
+  pushState(stateKey, handle, {
+    quests: quests.snapshot(), hull: hull.snapshot(), vessel: vesselKind, skiffOwned,
+  });
+}
+window.addEventListener('pagehide', pushPlayerState);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') pushPlayerState(); });
+
 // dev hook — lets headless checks jump the ship across the map; harmless in prod
 window.brig = {
   get shipPos() { return shipPos; },
@@ -644,8 +724,14 @@ window.brig = {
 // city, then take the helm and cast off when you're ready to cross
 berth(harbours.find((h) => h.name === 'Sevilla') || harbours[1]);
 // the opening: first visit gets name entry + a cinematic, then the spine quest
-// starts (via onReady); returning players skip in and we restore their quest HUD
-if (!intro.maybeRun()) quests.load();
+// starts (via onReady); returning players skip in and we restore their quest HUD.
+// If a returning player has no quest state and hasn't yet built a skiff (i.e.
+// they skipped/already saw the intro on this browser but never started), kick
+// off the spine so the objective HUD isn't blank.
+if (!intro.maybeRun()) {
+  const active = quests.load();
+  if (!active && !quests.flags['skiff-built']) quests.start('berth');
+}
 
 // --- loop ---
 let last = performance.now();
@@ -693,13 +779,15 @@ function frame(now) {
   fishing.update(dt);                  // cast/bite/land
   hull.update(dt, { atSea: !berthed, storm: weather.storm * diff.storm }); // hull wears in storms at sea
   if (flashT > 0) { flashT -= dt; if (flashT <= 0) flashEl.style.display = 'none'; }
-  // whale strikes out on the crossing — a hazard while actually sailing
-  if (!berthed && nav.speed > 0.2 && !foundering) {
+  // whale strikes out on the crossing — a hazard only in open water (like the
+  // pirates), so casting off near port doesn't get you struck immediately
+  if (!berthed && nav.speed > 0.2 && !foundering && inOpenWater()) {
     whaleTimer -= dt;
     if (whaleTimer <= 0) { hull.damage(15 * diff.whale); flashMsg('🐋 A whale strikes the hull!'); whaleTimer = 26 + Math.random() * 26; }
   } else whaleTimer = Math.max(whaleTimer, 12);
   if (!skiffOwned && quests.flags['skiff-built']) { // record the skiff you built
     skiffOwned = true; try { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); } catch {}
+    pushPlayerState(); // persist the new vessel to the account
   }
 
   // the player's lantern lights the deck around them after dark
@@ -710,7 +798,11 @@ function frame(now) {
   // world via the ship anchor), so every client shares one coherent map
   const pp = player.position;
   _peerWorld.set(pp.x, player.feetY, pp.z).applyMatrix4(shipAnchor.matrix);
-  world.update({ x: _peerWorld.x, y: _peerWorld.y, z: _peerWorld.z, heading: shipYaw, mode }, performance.now());
+  // heading in WORLD space: at the helm it's the ship's; on foot it's the
+  // player's facing rotated out of the (ship-relative) scene frame, so peers see
+  // a walking player face where they actually walk, not the compass heading
+  const worldHeading = mode === 'helm' ? shipYaw : shipYaw + player.facing;
+  world.update({ x: _peerWorld.x, y: _peerWorld.y, z: _peerWorld.z, heading: worldHeading, mode }, performance.now());
 
   orbit.update();
   post.render();

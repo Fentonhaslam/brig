@@ -1,11 +1,11 @@
-// The objective HUD — a small diegetic parchment card (top-left, under the
-// minimap) showing the player's current goal + an optional hint. Used by the
-// intro's onboarding guide now, and by the quest framework in Phase 2. Cheap:
-// one DOM node, shown/hidden on demand.
+// The objective HUD — a small diegetic parchment card showing the player's
+// current goal + an optional hint. Sits in the top-left column BELOW the minimap
+// and the coin purse (it used to overlap the minimap). Used by the intro's
+// onboarding guide and the quest framework. Cheap: one DOM node, shown/hidden.
 
 export function createObjective() {
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;top:118px;left:14px;z-index:58;max-width:262px;display:none;'
+  el.style.cssText = 'position:fixed;top:236px;left:14px;z-index:58;max-width:262px;display:none;'
     + 'font:14px/1.45 Georgia,serif;color:#f3e8cf;'
     + 'background:linear-gradient(180deg,rgba(34,26,16,.9),rgba(20,15,9,.94));'
     + 'padding:10px 14px;border:1px solid rgba(190,158,96,.5);border-left:3px solid #c9923a;'

@@ -107,7 +107,7 @@ export function createSkiff() {
     { hx: 0.2, hy: 0.5, hz: LEN * 0.45, x: BEAM * 0.44, y: DECK + 0.5, z: 0 }, // starboard rail
     { hx: 0.2, hy: 0.5, hz: LEN * 0.45, x: -BEAM * 0.44, y: DECK + 0.5, z: 0 }, // port rail
     { hx: BEAM * 0.42, hy: 0.5, hz: 0.2, x: 0, y: DECK + 0.5, z: -LEN * 0.45 }, // stern rail
-    { hx: BEAM * 0.42, hy: 0.5, hz: 0.2, x: 0, y: DECK + 0.5, z: LEN * 0.46 },  // bow rail (z>5*? no — small boat)
+    { hx: BEAM * 0.42, hy: 0.5, hz: 0.2, x: 0, y: DECK + 0.5, z: LEN * 0.46, bow: true },  // bow rail — dropped at berth so you can step ashore
   ];
 
   return {

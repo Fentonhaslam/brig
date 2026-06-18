@@ -511,7 +511,7 @@ export function createShip() {
     // bulwark walls (port / starboard / bow / stern)
     { hx: 0.25, hy: 0.9, hz: SHIP_LENGTH * 0.46, x: SHIP_BEAM * 0.42, y: DECK_Y + 0.6, z: 0 },
     { hx: 0.25, hy: 0.9, hz: SHIP_LENGTH * 0.46, x: -SHIP_BEAM * 0.42, y: DECK_Y + 0.6, z: 0 },
-    { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: SHIP_LENGTH * 0.46 },
+    { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: SHIP_LENGTH * 0.46, bow: true }, // bow rail — dropped at berth so you can step ashore
     { hx: SHIP_BEAM * 0.4, hy: 0.9, hz: 0.25, x: 0, y: DECK_Y + 0.6, z: -SHIP_LENGTH * 0.46 },
   ];
   colliders.push(...stepColliders);   // the deck stairs
@@ -522,7 +522,7 @@ export function createShip() {
   const S = SHIP_SCALE;
   root.scale.setScalar(S);
   const scaled = colliders.map((c) => ({
-    hx: c.hx * S, hy: c.hy * S, hz: c.hz * S, x: c.x * S, y: c.y * S, z: c.z * S, rot: c.rot,
+    hx: c.hx * S, hy: c.hy * S, hz: c.hz * S, x: c.x * S, y: c.y * S, z: c.z * S, rot: c.rot, bow: c.bow,
   }));
   return {
     root, deckY: DECK_Y * S, length: SHIP_LENGTH * S, beam: SHIP_BEAM * S,

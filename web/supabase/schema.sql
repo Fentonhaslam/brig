@@ -12,6 +12,11 @@ create table if not exists public.profiles (
   created_at  timestamptz not null default now()
 );
 
+-- is_admin: server-authoritative moderator flag. Flip via SQL editor:
+--   update public.profiles set is_admin = true where handle = '...';
+-- Admins helm the great nao, hide lore, and are exempt from rate limits.
+alter table public.profiles add column if not exists is_admin boolean not null default false;
+
 alter table public.profiles enable row level security;
 
 drop policy if exists "profiles readable by authenticated" on public.profiles;
@@ -43,14 +48,29 @@ create table if not exists public.lore_entries (
   created_at    timestamptz not null default now()
 );
 
+-- moderation: an admin may soft-hide any entry. Hidden rows stay in the DB
+-- (so we can audit / restore) but vanish from the world for everyone but
+-- admins. Stored as a nullable timestamp + the admin who pulled the stone.
+alter table public.lore_entries add column if not exists hidden_at timestamptz;
+alter table public.lore_entries add column if not exists hidden_by uuid references auth.users(id) on delete set null;
+
 alter table public.lore_entries enable row level security;
 
--- the world's chronicle is public to READ (so visitors & monuments load);
--- writing still requires being signed in as yourself (policies below).
+-- the world's chronicle is public to READ (so visitors & monuments load),
+-- but hidden entries vanish for everyone except admins (who need to see the
+-- griefs they pulled, to audit / unhide).
 drop policy if exists "lore readable by authenticated" on public.lore_entries;
 drop policy if exists "lore readable by anyone" on public.lore_entries;
-create policy "lore readable by anyone"
-  on public.lore_entries for select to anon, authenticated using (true);
+drop policy if exists "lore readable unless hidden" on public.lore_entries;
+create policy "lore readable unless hidden"
+  on public.lore_entries for select to anon, authenticated
+  using (
+    hidden_at is null
+    or (auth.uid() is not null and exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.is_admin = true
+    ))
+  );
 
 drop policy if exists "authors insert own lore" on public.lore_entries;
 create policy "authors insert own lore"
@@ -62,8 +82,53 @@ create policy "authors edit own lore"
   on public.lore_entries for update to authenticated
   using (auth.uid() = author_id) with check (auth.uid() = author_id);
 
+-- admins may hide / unhide any entry (sets hidden_at + hidden_by).
+drop policy if exists "admins moderate lore" on public.lore_entries;
+create policy "admins moderate lore"
+  on public.lore_entries for update to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true)
+  )
+  with check (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true)
+  );
+
 create index if not exists lore_entries_created_idx
   on public.lore_entries (created_at desc);
+
+-- rate-limit: a non-admin author may raise at most 10 stones per hour.
+-- This is the cheap mitigation against a Twitch viewer signing up and
+-- mashing the inscribe button. Admins are exempt.
+create or replace function private.enforce_lore_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  recent int;
+  admin_flag boolean;
+begin
+  select coalesce(is_admin, false) into admin_flag
+    from public.profiles where id = new.author_id;
+  if admin_flag then return new; end if;
+
+  select count(*) into recent
+    from public.lore_entries
+    where author_id = new.author_id
+      and created_at > now() - interval '1 hour';
+  if recent >= 10 then
+    raise exception 'rate_limit: too many inscriptions in the last hour — wait a while before raising another stone'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists lore_rate_limit on public.lore_entries;
+create trigger lore_rate_limit
+  before insert on public.lore_entries
+  for each row execute function private.enforce_lore_rate_limit();
 
 -- new lore broadcasts live to every connected client (idempotent)
 do $$ begin
@@ -95,6 +160,33 @@ create policy "inventories insertable"
 drop policy if exists "inventories updatable" on public.inventories;
 create policy "inventories updatable"
   on public.inventories for update to anon, authenticated using (true) with check (true);
+
+-- ---------------------------------------------------------------------------
+-- player_state: progression that isn't cargo — quest progress, hull condition,
+-- and which vessel the player owns. Keyed like inventories (a stable browser
+-- identity, or acct:<uid> once signed in) so a signed-in player keeps progress
+-- across devices. Anon-writable for the guest world, same as inventories.
+-- ---------------------------------------------------------------------------
+create table if not exists public.player_state (
+  player_key  text primary key,
+  handle      text,
+  state       jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.player_state enable row level security;
+
+drop policy if exists "player_state readable" on public.player_state;
+create policy "player_state readable"
+  on public.player_state for select to anon, authenticated using (true);
+
+drop policy if exists "player_state insertable" on public.player_state;
+create policy "player_state insertable"
+  on public.player_state for insert to anon, authenticated with check (true);
+
+drop policy if exists "player_state updatable" on public.player_state;
+create policy "player_state updatable"
+  on public.player_state for update to anon, authenticated using (true) with check (true);
 
 -- ---------------------------------------------------------------------------
 -- auto-create a profile when a new auth user signs up

@@ -13,7 +13,7 @@ export function createMinimap(places, getShip) {
   const cv = document.createElement('canvas');
   cv.width = SIZE * dpr; cv.height = SIZE * dpr;
   cv.style.cssText = 'width:' + SIZE + 'px;height:' + SIZE + 'px;border-radius:10px;'
-    + 'background:rgba(10,28,40,.5);backdrop-filter:blur(3px);border:1px solid rgba(180,150,90,.35)';
+    + 'background:rgba(8,22,34,.68);backdrop-filter:blur(3px);border:1px solid rgba(190,158,96,.5);box-shadow:0 6px 20px rgba(0,0,0,.4)';
   const label = document.createElement('div');
   label.style.cssText = 'margin-top:5px;letter-spacing:.4px;text-shadow:0 1px 3px rgba(0,0,0,.6)';
   wrap.appendChild(cv); wrap.appendChild(label);
@@ -53,15 +53,19 @@ export function createMinimap(places, getShip) {
     ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     ctx.setLineDash([]);
 
-    // ports
+    // ports — a dot with an outlined label so the names read over any sea colour
+    ctx.textAlign = 'center';
+    ctx.font = '600 10px system-ui';
     for (const p of places) {
       const [px, py] = proj(p.x, p.z);
-      ctx.fillStyle = '#e8d49a';
+      ctx.fillStyle = '#f0d68a';
       ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(243,232,207,.9)';
-      ctx.font = '9px system-ui';
-      ctx.textAlign = p === to ? 'center' : 'center';
-      ctx.fillText(p.name, px, py + (p === to ? -8 : 14));
+      ctx.strokeStyle = '#e8d49a'; ctx.lineWidth = 1.4; ctx.stroke();
+      const ly = py + (p === to ? -8 : 14);
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(6,12,18,.92)'; ctx.lineJoin = 'round';
+      ctx.strokeText(p.name, px, ly);
+      ctx.fillStyle = '#f6ecd2';
+      ctx.fillText(p.name, px, ly);
     }
 
     // ship marker — a heading arrow (forward = +z)

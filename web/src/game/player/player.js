@@ -88,6 +88,7 @@ export function createPlayer(physics, scene, spawn = new Vector3(0, 4, 0)) {
     group, char,
     walk, update, setSwim, jump,
     get swimming() { return swimming; },
+    get facing() { return facing; }, // scene-space yaw the avatar faces (for peer broadcast ashore)
     get position() { const p = char.translation(); return new Vector3(p.x, p.y, p.z); },
     get feetY() { return char.translation().y - FOOT; },
     teleport: (x, y, z) => { char.teleport(x, y, z); vy = 0; },

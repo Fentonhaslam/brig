@@ -26,15 +26,16 @@ const QUESTS = {
 };
 
 export function createQuests({ objective, inventory, sceneAt, getBerthedName, persistKey = 'brig:quests' }) {
+  let pk = persistKey;
   const state = { active: null, step: 0, flags: {} };
   const _p = {}; // scratch
 
   function save() {
-    try { localStorage.setItem(persistKey, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(pk, JSON.stringify(state)); } catch {}
   }
   function load() {
     try {
-      const raw = localStorage.getItem(persistKey);
+      const raw = localStorage.getItem(pk);
       if (raw) {
         const p = JSON.parse(raw);
         if (p.active !== undefined) state.active = p.active;
@@ -116,8 +117,21 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     }
   }
 
+  // account sync: re-point the save key (sign-in) + snapshot/restore progress.
+  // restore merges into the live flags object so the exposed `flags` reference
+  // (window.brig.quests.flags, gather's skiff-built check) stays valid.
+  function setKey(k) { pk = k; }
+  function snapshot() { return { active: state.active, step: state.step, flags: { ...state.flags } }; }
+  function restore(p) {
+    if (!p) return;
+    if (p.active !== undefined) state.active = p.active;
+    if (typeof p.step === 'number') state.step = p.step;
+    if (p.flags) Object.assign(state.flags, p.flags);
+    save(); refreshHUD();
+  }
+
   return {
-    start, notify, update, load, save, flag,
+    start, notify, update, load, save, flag, setKey, snapshot, restore,
     get active() { return state.active; },
     get step() { return state.step; },
     get stepId() { const s = curStep(); return s && s.id; },

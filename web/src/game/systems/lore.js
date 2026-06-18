@@ -80,11 +80,15 @@ export function createLore({ group, anchor, handle, key }) {
   // assemble: founding tales + local marks now; merge the shared DB when it loads
   entries.push(...SEED, ...localEntries);
   render();
+  // key by DB id when present (so distinct tales that happen to share a
+  // title+author don't collide), falling back to title|author for id-less
+  // seed/local entries.
+  const loreKey = (e) => (e.id ? 'id:' + e.id : 't:' + e.title + '|' + e.author_handle);
   listLore(100).then((rows) => {
     if (!rows || !rows.length) return;
-    const seen = new Set(entries.map((e) => e.title + '|' + e.author_handle));
+    const seen = new Set(entries.map(loreKey));
     for (const r of rows) {
-      const k = r.title + '|' + r.author_handle;
+      const k = loreKey(r);
       if (!seen.has(k)) { entries.push(r); seen.add(k); }
     }
     render();
@@ -92,22 +96,44 @@ export function createLore({ group, anchor, handle, key }) {
 
   // raise a memory-stone. Signed in -> insert to the shared chronicle as the
   // real author (visible to everyone); guest -> save locally for this browser.
-  function inscribe(title, body) {
+  // Returns a promise that resolves to {ok, error?} so the UI can show DB
+  // errors (e.g. rate limit) instead of silently swallowing them.
+  async function inscribe(title, body) {
     const t = title.trim(), b = body.trim();
-    if (!t || !b) return false;
+    if (!t || !b) return { ok: false, error: 'A title and a tale are required.' };
     const entry = { title: t, body: b, author_handle: curHandle, local: !session };
     entries.push(entry); render();
     if (session) {
-      addLore({ session, handle: curHandle, title: t, body: b, kind: 'monument' }).catch(() => {});
+      try {
+        const row = await addLore({ session, handle: curHandle, title: t, body: b, kind: 'monument' });
+        // patch the optimistic entry with the real DB id so we can hide it later
+        const idx = entries.indexOf(entry);
+        if (idx >= 0 && row) entries[idx] = { ...entry, ...row };
+      } catch (err) {
+        // roll back the optimistic stone and bubble the error up
+        const idx = entries.indexOf(entry);
+        if (idx >= 0) entries.splice(idx, 1);
+        render();
+        return { ok: false, error: err?.message || 'Could not raise the stone.' };
+      }
     } else {
       localEntries.push(entry); saveLocal(localEntries);
     }
-    return true;
+    return { ok: true };
   }
 
   function setSession(s, h) { session = s; if (h) curHandle = h; }
 
-  return { inscribe, setSession, get count() { return entries.length; } };
+  // moderation: drop a stone by DB id (admins hide via the moderation panel)
+  function removeById(id) {
+    const before = entries.length;
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i] && entries[i].id === id) entries.splice(i, 1);
+    }
+    if (entries.length !== before) render();
+  }
+
+  return { inscribe, setSession, removeById, get count() { return entries.length; } };
 }
 
 // --- the inscribe panel (parchment) ----------------------------------------
@@ -125,21 +151,31 @@ export function createInscribePanel(onSubmit) {
       style="width:100%;box-sizing:border-box;padding:9px 11px;margin-bottom:8px;font:15px Georgia,serif;background:rgba(0,0,0,.3);border:1px solid rgba(200,160,90,.3);border-radius:4px;color:#f4ead2" />
     <textarea id="lore-body" maxlength="240" placeholder="Tell the tale…"
       style="width:100%;box-sizing:border-box;height:96px;resize:vertical;padding:9px 11px;font:15px/1.5 Georgia,serif;background:rgba(0,0,0,.3);border:1px solid rgba(200,160,90,.3);border-radius:4px;color:#f4ead2"></textarea>
-    <div style="display:flex;gap:10px;margin-top:12px">
+    <div id="lore-err" style="min-height:18px;margin-top:8px;font:13px Georgia,serif;color:#e88;font-style:italic"></div>
+    <div style="display:flex;gap:10px;margin-top:6px">
       <button id="lore-go" style="flex:1;padding:11px;font:600 13px system-ui;letter-spacing:1px;background:linear-gradient(180deg,#9a6a20,#6a4410);color:#fff3df;border:1px solid #c8a050;border-radius:5px;cursor:pointer">RAISE THE STONE</button>
       <button id="lore-x" style="padding:11px 16px;font:600 13px system-ui;background:rgba(0,0,0,.3);color:#d8c39a;border:1px solid rgba(180,150,90,.4);border-radius:5px;cursor:pointer">CLOSE</button>
     </div>
-    <div style="font-size:11px;opacity:.55;margin-top:10px;font-style:italic">Saved to your log. Sign in (soon) to make it permanent for every sailor.</div>`;
+    <div style="font-size:11px;opacity:.55;margin-top:10px;font-style:italic">Saved to your log. Sign in to make it permanent for every sailor.</div>`;
   document.body.appendChild(el);
 
   const title = el.querySelector('#lore-title');
   const body = el.querySelector('#lore-body');
+  const errEl = el.querySelector('#lore-err');
+  const goEl = el.querySelector('#lore-go');
   let open = false;
-  function show() { open = true; el.style.display = 'block'; title.focus(); }
+  function show() { open = true; errEl.textContent = ''; el.style.display = 'block'; title.focus(); }
   function hide() { open = false; el.style.display = 'none'; }
   el.querySelector('#lore-x').onclick = hide;
-  el.querySelector('#lore-go').onclick = () => {
-    if (onSubmit(title.value, body.value)) { title.value = ''; body.value = ''; hide(); }
+  goEl.onclick = async () => {
+    errEl.textContent = ''; goEl.disabled = true;
+    try {
+      const res = await onSubmit(title.value, body.value);
+      // back-compat: legacy onSubmit returned a boolean
+      if (res === true) { title.value = ''; body.value = ''; hide(); return; }
+      if (res && res.ok) { title.value = ''; body.value = ''; hide(); return; }
+      errEl.textContent = (res && res.error) || 'Could not raise the stone.';
+    } finally { goEl.disabled = false; }
   };
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) hide(); });
   return { show, hide, get isOpen() { return open; } };

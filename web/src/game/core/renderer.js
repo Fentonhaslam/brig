@@ -1,8 +1,10 @@
-// Lean WebGL renderer for the lightweight build.
+// WebGL renderer for the build.
 //
-// Deliberately minimal: no shadow maps, no post-processing, capped pixel ratio.
-// ACES tone mapping is free in three and gives the warm cinematic punch without
-// any of the post-processing passes that tanked the Babylon build.
+// Pixel ratio is capped at 1.5x (the big high-DPI win). ACES tone mapping is
+// applied here; one tightly-framed PCFSoft shadow map covers the deck. NOTE:
+// the heavier frame cost lives downstream — core/post.js runs a full
+// EffectComposer (GTAO + bloom + grade + SMAA). This file is no longer
+// "no shadows, no post"; see post.js for the passes and the quality levers.
 
 import {
   WebGLRenderer,

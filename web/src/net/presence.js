@@ -71,6 +71,21 @@ export function joinWorld({ handle, userId }) {
       if (channel && channel.state === 'joined') channel.track(lastState);
     },
     onPeers(cb) { onChange = cb; },
+    // re-identify after sign-in: peers should see the account handle, and the
+    // presence key should follow the account so two accounts on one browser
+    // don't collide on the guest key. A changed userId means re-subscribing the
+    // channel under the new key; a handle-only change just re-tracks our state.
+    identify({ handle: nextHandle, userId: nextUserId } = {}) {
+      if (nextHandle) handle = nextHandle;
+      lastState = { ...lastState, handle };
+      if (nextUserId && nextUserId !== userId) {
+        userId = nextUserId;
+        try { if (channel) supabase.removeChannel(channel); } catch {}
+        join(); // re-subscribes under the new presence key, then tracks lastState
+      } else if (channel && channel.state === 'joined') {
+        channel.track(lastState);
+      }
+    },
     leave() { left = true; if (channel) supabase.removeChannel(channel); },
     peers,
   };
