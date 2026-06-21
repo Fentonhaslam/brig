@@ -12,6 +12,35 @@ import {
   PlaneGeometry, CylinderGeometry, BoxGeometry, MeshStandardMaterial, DoubleSide,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+
+// a bulged, hooped barrel (fat middle, narrow ends, three iron hoops) — reads as
+// a cooper's barrel rather than a plain cylinder
+function barrelGeometry() {
+  const top = new CylinderGeometry(0.4, 0.47, 0.55, 12); top.translate(0, 0.275, 0);
+  const bot = new CylinderGeometry(0.47, 0.4, 0.55, 12); bot.translate(0, -0.275, 0);
+  const hoopM = new CylinderGeometry(0.49, 0.49, 0.07, 12);
+  const hoopT = new CylinderGeometry(0.43, 0.43, 0.06, 12); hoopT.translate(0, 0.42, 0);
+  const hoopB = new CylinderGeometry(0.43, 0.43, 0.06, 12); hoopB.translate(0, -0.42, 0);
+  return mergeGeometries([top, bot, hoopM, hoopT, hoopB]);
+}
+
+// a beveled, slatted crate — rounded body with proud corner posts and edge rails
+function crateGeometry() {
+  const parts = [new RoundedBoxGeometry(1.05, 0.96, 1.05, 2, 0.06)];
+  for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+    const p = new BoxGeometry(0.12, 1.0, 0.12); p.translate(x, 0, z); parts.push(p);
+  }
+  for (const y of [-0.42, 0.42]) {
+    const a = new BoxGeometry(1.06, 0.1, 0.12); a.translate(0, y, 0.5); parts.push(a);
+    const b = new BoxGeometry(1.06, 0.1, 0.12); b.translate(0, y, -0.5); parts.push(b);
+    const c = new BoxGeometry(0.12, 0.1, 1.06); c.translate(0.5, y, 0); parts.push(c);
+    const d = new BoxGeometry(0.12, 0.1, 1.06); d.translate(-0.5, y, 0); parts.push(d);
+  }
+  // RoundedBoxGeometry is non-indexed while BoxGeometry is indexed; drop all to
+  // non-indexed so mergeGeometries gets compatible attributes
+  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
+}
 
 const _m = new Matrix4(), _p = new Vector3(), _q = new Quaternion(), _e = new Euler(), _s = new Vector3();
 
@@ -69,7 +98,7 @@ export function addGrass(group, placements, color = 0x6f8a3c) {
 // add scattered barrels (instanced). `placements` in group-local space
 export function addBarrels(group, placements, color = 0x6f4a28) {
   if (!placements.length) return null;
-  const geo = new CylinderGeometry(0.42, 0.46, 1.1, 8);
+  const geo = barrelGeometry();
   const mat = new MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
   const mesh = instanced(geo, mat, placements);
   group.add(mesh);
@@ -79,7 +108,7 @@ export function addBarrels(group, placements, color = 0x6f4a28) {
 // add scattered crates (instanced)
 export function addCrates(group, placements, color = 0x7a5a34) {
   if (!placements.length) return null;
-  const geo = new BoxGeometry(1.1, 1.0, 1.1);
+  const geo = crateGeometry();
   const mat = new MeshStandardMaterial({ color, roughness: 0.8, metalness: 0 });
   const mesh = instanced(geo, mat, placements);
   group.add(mesh);

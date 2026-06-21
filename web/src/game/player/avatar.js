@@ -30,36 +30,44 @@ function mat(hex) {
   return _mats.get(hex);
 }
 
+// soft contact-ink: thin, warm-dark outlines that read as a grounding shadow
+// line rather than a hard cartoon marker. Silhouette masses (head/torso) get a
+// touch more; limbs barely any. Tuned down hard from the old 0.025–0.032 ink.
+const INK = 0x281b12;
+const OUT = { body: 0.016, limb: 0.009, kit: 0.012 };
+
 // Shared geometry — every figure is identical in shape (only material colour and
 // a few per-mesh scales vary), so one set of geometries serves the whole cast.
-// This removes ~28 BufferGeometry allocations per avatar (a crew + townsfolk =
+// This removes ~30 BufferGeometry allocations per avatar (a crew + townsfolk =
 // hundreds) and means disposeAvatar() only has to free the per-instance outline
 // shells; the shared geometries below live for the page and are never disposed.
+// Segment counts bumped up for rounder, less-faceted silhouettes — paid once.
 const GEO = {
-  thigh: new CapsuleGeometry(0.115, 0.26, 3, 7),
-  shin: new CapsuleGeometry(0.1, 0.26, 3, 7),
-  foot: new BoxGeometry(0.18, 0.14, 0.34),
-  pelvis: new BoxGeometry(0.34, 0.22, 0.26),
-  torso: new CapsuleGeometry(0.21, 0.34, 4, 9),
-  sash: new BoxGeometry(0.46, 0.12, 0.32),
-  collar: new BoxGeometry(0.5, 0.12, 0.34),
-  armUpper: new CapsuleGeometry(0.085, 0.24, 3, 7),
-  armFore: new CapsuleGeometry(0.078, 0.22, 3, 7),
-  hand: new SphereGeometry(0.085, 7, 6),
-  neck: new CylinderGeometry(0.07, 0.08, 0.1, 7),
-  head: new SphereGeometry(0.18, 10, 8),
-  nose: new ConeGeometry(0.04, 0.1, 5),
-  eye: new SphereGeometry(0.032, 6, 5),
-  beard: new SphereGeometry(0.165, 9, 7),
-  morionDome: new SphereGeometry(0.2, 9, 6),
-  morionBrim: new CylinderGeometry(0.3, 0.32, 0.04, 12),
+  thigh: new CapsuleGeometry(0.12, 0.3, 4, 14),
+  shin: new CapsuleGeometry(0.1, 0.3, 4, 14),
+  foot: new BoxGeometry(0.18, 0.13, 0.36),
+  pelvis: new BoxGeometry(0.33, 0.22, 0.25),
+  torso: new CapsuleGeometry(0.205, 0.42, 6, 16),
+  sash: new BoxGeometry(0.45, 0.12, 0.31),
+  collar: new BoxGeometry(0.48, 0.12, 0.33),
+  armUpper: new CapsuleGeometry(0.082, 0.26, 4, 12),
+  armFore: new CapsuleGeometry(0.072, 0.24, 4, 12),
+  hand: new SphereGeometry(0.08, 12, 9),
+  neck: new CylinderGeometry(0.066, 0.082, 0.12, 12),
+  head: new SphereGeometry(0.17, 22, 16),
+  brow: new BoxGeometry(0.085, 0.022, 0.04),
+  nose: new ConeGeometry(0.034, 0.085, 8),
+  eye: new SphereGeometry(0.03, 10, 8),
+  beard: new SphereGeometry(0.158, 14, 11),
+  morionDome: new SphereGeometry(0.195, 14, 9),
+  morionBrim: new CylinderGeometry(0.3, 0.32, 0.04, 20),
   morionComb: new BoxGeometry(0.04, 0.16, 0.42),
-  plumeBrim: new CylinderGeometry(0.32, 0.32, 0.04, 12),
-  plumeCrown: new CylinderGeometry(0.19, 0.21, 0.2, 10),
-  plume: new ConeGeometry(0.06, 0.42, 6),
-  cap: new SphereGeometry(0.195, 9, 6),
-  bandanaDome: new SphereGeometry(0.19, 9, 6),
-  bandanaKnot: new ConeGeometry(0.05, 0.18, 5),
+  plumeBrim: new CylinderGeometry(0.32, 0.32, 0.04, 20),
+  plumeCrown: new CylinderGeometry(0.19, 0.21, 0.2, 16),
+  plume: new ConeGeometry(0.06, 0.42, 8),
+  cap: new SphereGeometry(0.19, 14, 9),
+  bandanaDome: new SphereGeometry(0.185, 14, 9),
+  bandanaKnot: new ConeGeometry(0.05, 0.18, 7),
 };
 
 // role -> palette + headgear + facial hair
@@ -88,11 +96,12 @@ export function makeAvatar(role = 'sailor') {
   const g = new Group();
   const parts = {};
 
-  // place a mesh straight onto the figure (world-upright body parts)
+  // place a mesh straight onto the figure (world-upright body parts).
+  // `outline` may be true (→ body weight) or a number (explicit thickness).
   const put = (geo, hex, x, y, z, outline = false) => {
     const m = new Mesh(geo, mat(hex));
     m.position.set(x, y, z);
-    if (outline) withOutline(m, 0.03);
+    if (outline) withOutline(m, typeof outline === 'number' ? outline : OUT.body, INK);
     g.add(m);
     return m;
   };
@@ -103,11 +112,11 @@ export function makeAvatar(role = 'sailor') {
     const j = new Group();
     j.position.set(side * 0.12, HIP_Y, 0);
     const thigh = new Mesh(GEO.thigh, mat(P.cloth));
-    thigh.position.y = -0.2; j.add(thigh); withOutline(thigh, 0.028);
+    thigh.position.y = -0.2; j.add(thigh); withOutline(thigh, OUT.limb, INK);
     const shin = new Mesh(GEO.shin, mat(P.boot));
-    shin.position.y = -0.56; j.add(shin);
+    shin.position.y = -0.58; j.add(shin);
     const foot = new Mesh(GEO.foot, mat(P.boot));
-    foot.position.set(0, -0.82, 0.06); j.add(foot); withOutline(foot, 0.025);
+    foot.position.set(0, -0.84, 0.07); j.add(foot); withOutline(foot, OUT.limb, INK);
     g.add(j);
     return j;
   }
@@ -117,7 +126,7 @@ export function makeAvatar(role = 'sailor') {
   // --- PELVIS + TORSO (rounded jerkin) ---
   put(GEO.pelvis, P.cloth, 0, HIP_Y + 0.02, 0, true);
   const torso = new Mesh(GEO.torso, mat(P.armor));
-  torso.position.y = 1.18; torso.scale.set(1, 1, 0.78); g.add(torso); withOutline(torso, 0.032);
+  torso.position.y = 1.18; torso.scale.set(1, 1, 0.76); g.add(torso); withOutline(torso, OUT.body, INK);
   // sash / belt across the waist
   put(GEO.sash, P.accent, 0, 1.0, 0);
   // collar / shoulder yoke
@@ -128,7 +137,7 @@ export function makeAvatar(role = 'sailor') {
     const j = new Group();
     j.position.set(side * 0.3, SHOULDER_Y, 0);
     const upper = new Mesh(GEO.armUpper, mat(P.cloth));
-    upper.position.y = -0.17; j.add(upper); withOutline(upper, 0.026);
+    upper.position.y = -0.17; j.add(upper); withOutline(upper, OUT.limb, INK);
     const fore = new Mesh(GEO.armFore, mat(P.skin));
     fore.position.y = -0.46; j.add(fore);
     const hand = new Mesh(GEO.hand, mat(P.skin));
@@ -142,13 +151,19 @@ export function makeAvatar(role = 'sailor') {
   // --- NECK + HEAD ---
   put(GEO.neck, P.skin, 0, 1.54, 0);
   const head = put(GEO.head, P.skin, 0, HEAD_Y, 0, true);
-  head.scale.set(0.96, 1.06, 1);
-  // nose + eyes give it a face that reads at a glance
-  put(GEO.nose, P.skin, 0, HEAD_Y - 0.02, 0.17).rotation.x = Math.PI / 2;
-  for (const sx of [-1, 1]) put(GEO.eye, 0x1c140e, sx * 0.07, HEAD_Y + 0.03, 0.155);
+  head.scale.set(0.95, 1.05, 0.98);
+  // a face that reads at a glance: brow line, set-in eyes (white + dark iris),
+  // a smaller nose. The eyes sit slightly into the head so they don't bulge.
+  const browCol = P.beard || 0x3a2a1c;
+  put(GEO.nose, P.skin, 0, HEAD_Y - 0.025, 0.165).rotation.x = Math.PI / 2;
+  for (const sx of [-1, 1]) {
+    // a dark, set-in almond eye (reads grounded at distance — no white sclera)
+    put(GEO.eye, 0x1a120c, sx * 0.07, HEAD_Y + 0.02, 0.156).scale.set(1.2, 0.78, 0.7);
+    put(GEO.brow, browCol, sx * 0.07, HEAD_Y + 0.082, 0.158).rotation.z = sx * 0.12;
+  }
   if (P.beard) {
     const b = put(GEO.beard, P.beard, 0, HEAD_Y - 0.06, 0.02);
-    b.scale.set(0.92, 0.7, 0.86);
+    b.scale.set(0.92, 0.72, 0.86);
   }
 
   // --- HEADGEAR ---

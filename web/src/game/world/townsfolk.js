@@ -117,6 +117,20 @@ const FOLK = {
       lines: ['I crossed an ocean to stand guard over a half-built wall. Glory is slower in arriving than the friars promised.', 'Keep your powder dry and your eyes on the treeline. This island is not as tame as the maps pretend.'] },
     { name: 'Fray Domingo', title: 'Missionary', role: 'friar', dx: -3, dz: 22, ry: 0.3,
       lines: ['The bell we hung last month is the first in the New World. Its sound still surprises the birds.', 'Tell them in Valdara that souls are saved here — and ask them, quietly, at what cost.'] },
+    { name: 'Maestre Cifuentes', title: 'Colony Carpenter', role: 'carpenter', dx: 8, dz: 26, ry: -0.3, radius: 1.6,
+      lines: ['Every plank in this place crossed the same ocean you did. We waste nothing — there is no chandler to run to here.', 'Green timber, salt air, and haste: that is how a roof comes down on your head. I build slow, so men sleep dry.'] },
+    { name: 'Colona Beatriz', title: 'Settler’s Wife', role: 'matron', dx: -8, dz: 28, ry: 0.5,
+      lines: ['The well water is sweet, thank God — the first thing about this place that has not tried to kill us.', 'I keep a garden behind the keep. Seeds from home, in foreign soil. Some take. Some don’t. Like the people.'] },
+  ],
+  Bocamar: [
+    { name: 'Patrón Olmedo', title: 'Boatman', role: 'sailor', dx: 14, dz: 14, ry: -0.7, radius: 1.6,
+      lines: ['You’re for the crossing, then? The river runs calm — it’s the open sea past the bar that takes the careless.', 'Wait for the ebb and the morning wind. Launch in a squall and you’ll feed the sandbar, not the Indies.'] },
+    { name: 'Vieja Sancha', title: 'Fishwife', role: 'matron', dx: -10, dz: 24, ry: 0.6,
+      lines: ['Mullet and bream, hooked this dawn! …or a charm for safe passage, if your purse is thin and your nerve thinner.', 'Three of my sons took the crossing. Two the sea gave back. Light a candle before you sail, sailor.'] },
+    { name: 'Torrero Gil', title: 'Beacon-Keeper', role: 'colonist', dx: 18, dz: 2, ry: -0.4, radius: 1.2,
+      lines: ['I keep the beacon lit so the homebound find the river mouth in the dark. Few enough of them, these days.', 'Raise Las Verdías on the far side and look for a light like mine. If you see it, you’ve made it across.'] },
+    { name: 'Rapaz', title: 'Net-Boy', role: 'urchin', dx: 5, dz: 18, ry: 0.3, scale: 0.72, radius: 3.0,
+      lines: ['I mend nets faster than any boy on this quay! Take me with you — I won’t be sick, I swear it!'] },
   ],
 };
 
