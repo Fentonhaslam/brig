@@ -140,8 +140,20 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     return null;
   }
 
+  // a player-facing snapshot of the active quest for the dashboard: the quest
+  // name + each step flagged done / current / upcoming
+  function progress() {
+    const q = def();
+    if (!q) return null;
+    return {
+      name: q.name,
+      step: state.step,
+      steps: q.steps.map((s, i) => ({ title: s.title, hint: s.hint, done: i < state.step, current: i === state.step })),
+    };
+  }
+
   return {
-    start, notify, update, load, save, flag, setKey, snapshot, restore, currentTarget,
+    start, notify, update, load, save, flag, setKey, snapshot, restore, currentTarget, progress,
     get active() { return state.active; },
     get step() { return state.step; },
     get stepId() { const s = curStep(); return s && s.id; },

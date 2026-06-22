@@ -63,10 +63,11 @@ export function joinWorld({ handle, userId }) {
 
   let lastSend = 0;
   return {
-    // throttled position broadcast (~8/s); state is world-space
+    // throttled position broadcast (~10/s, under the realtime cap); state is
+    // world-space and the receiver interpolates between these samples
     update(state, nowMs) {
       lastState = { handle, ...state };
-      if (nowMs - lastSend < 120) return;
+      if (nowMs - lastSend < 100) return;
       lastSend = nowMs;
       if (channel && channel.state === 'joined') channel.track(lastState);
     },

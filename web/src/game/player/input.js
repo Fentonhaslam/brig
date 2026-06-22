@@ -8,7 +8,10 @@ import { Raycaster, Vector2 } from 'three';
 
 export function createInput(dom, camera) {
   const keys = new Set();
-  window.addEventListener('keydown', (e) => keys.add(e.code));
+  // ignore keystrokes while the player is typing in a form field (feedback,
+  // chronicle, name entry) so WASD doesn't drive the ship as you write
+  const typing = (e) => { const t = e.target && e.target.tagName; return t === 'INPUT' || t === 'TEXTAREA'; };
+  window.addEventListener('keydown', (e) => { if (!typing(e)) keys.add(e.code); });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
 
   const ray = new Raycaster();

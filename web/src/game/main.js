@@ -12,6 +12,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { createRenderer } from './core/renderer.js';
 import { createPost } from './core/post.js';
+import { createQuality } from './core/quality.js';
 import { createAudio } from './core/audio.js';
 import { createStats } from './core/stats.js';
 import { createOrbitCam } from './camera/orbit.js';
@@ -46,7 +47,10 @@ import { createFishing } from './systems/fishing.js';
 import { createHull } from './systems/hull.js';
 import { createWaypoint } from './systems/waypoint.js';
 import { tier, loadDifficulty, saveDifficulty, TIERS } from './config/difficulty.js';
-import { createSettings } from './ui/settings.js';
+import { createDashboard } from './ui/dashboard.js';
+import { createFeedback } from './ui/feedback.js';
+import { createDevConsole } from './ui/devconsole.js';
+import { installLogFilter, log } from './core/log.js';
 import { initPhysics } from './core/physics.js';
 import { createPlayer } from './player/player.js';
 import { createInput } from './player/input.js';
@@ -191,9 +195,12 @@ orbit.setRadius(CAM.walk);
 
 // cinematic post (bloom + warm grade + vignette + grain)
 const post = createPost(renderer, scene, camera);
+// quality manager — presets + auto-detect + adaptive step-down (the lag fix on
+// weak laptops). Owns pixel-ratio, shadows and which post passes run.
+const quality = createQuality({ renderer, post, sun });
 
 // theme music (starts on first interaction; 🔊 / M to mute)
-createAudio('/theme.mp3', 0.4);
+const audio = createAudio('/theme.mp3', 0.4);
 
 // day/night cycle — drives sun, sky, sea, fog, lantern + bloom together
 const dayNight = createDayNight({ renderer, sun, hemi, sky, water, scene, post, lantern });
@@ -695,8 +702,33 @@ const fishing = createFishing({
   getAtSea: () => !berthed,
   getActive: () => !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
 });
-// settings — pick the crossing's difficulty tier (persisted)
-createSettings({ tiers: TIERS, current: loadDifficulty(), onPick: (t) => { diff = tier(t); saveDifficulty(t); } });
+// the player dashboard — quests, settings, performance (quality presets + FPS),
+// controls. Opens with ☰ or Esc. Replaces the old standalone difficulty gear.
+const dashboard = createDashboard({
+  quality,
+  getStats: () => ({ calls: renderer.info.render.calls }),
+  quests,
+  objective,
+  difficulty: { tiers: TIERS, get: () => loadDifficulty(), set: (k) => { diff = tier(k); saveDifficulty(k); } },
+  audio,
+  isBusy: () => dialogue.isOpen || inscribe.isOpen || intro.active,
+});
+// tidy the console (swallow benign optional-table 404s) + dev console (backtick;
+// dev build / admin / ?dev=1 link only)
+installLogFilter();
+createDevConsole();
+log.info(`ready · quality ${quality.level}${quality.auto ? ' (auto)' : ''}`);
+
+// in-game feedback — anyone can report a bug or suggest an improvement
+createFeedback({
+  handle,
+  playerKey: guestId,
+  getContext: () => ({
+    place: berthed && activeHarbour ? activeHarbour.name : 'at sea',
+    vessel: vesselKind,
+    atSea: !berthed,
+  }),
+});
 
 // waypoint guidance — the 3D "shiny" beacon + an on-screen pointer to the
 // current objective (resolved each frame from the active quest step)
@@ -736,6 +768,7 @@ window.brig = {
   player, ship, places: built.places, inv: inventory, lore, inscribe,
   dialogue, crew, townsfolk, peers, dayNight,
   get gfx() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }; },
+  quality, get fps() { return quality.fps; },
   berth, castOff, get berthed() { return berthed; },
   harbours, get activeHarbour() { return activeHarbour; }, water, orbit, cannons, refit, weather, market, sealife,
   spawnEnemy: () => combat.spawn(), get enemy() { return combat.enemy; }, get playerHp() { return combat.playerHp; }, combatDbg: () => combat.dbg(), testFire: () => combat.testFire(),
@@ -841,7 +874,10 @@ function frame(now) {
   world.update({ x: _peerWorld.x, y: _peerWorld.y, z: _peerWorld.z, heading: worldHeading, mode }, performance.now());
 
   orbit.update();
-  post.render();
+  // Low quality bypasses the whole composer (no GTAO/bloom/grade) — the cheapest
+  // path; Medium/High render through post. Adaptive monitor watches the FPS.
+  if (quality.usePost) post.render(); else renderer.render(scene, camera);
+  quality.update(dt);
   stats.update(dt, renderer);
   requestAnimationFrame(frame);
 }

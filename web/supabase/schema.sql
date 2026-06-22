@@ -189,6 +189,70 @@ create policy "player_state updatable"
   on public.player_state for update to anon, authenticated using (true) with check (true);
 
 -- ---------------------------------------------------------------------------
+-- feedback: in-game bug reports & improvement ideas. Anyone (even a guest, not
+-- signed in) may INSERT one — that's the point, zero friction. Only admins may
+-- read them in-app; you otherwise review them in the Supabase dashboard (the
+-- service role bypasses RLS). Players cannot read, edit or delete feedback.
+-- ---------------------------------------------------------------------------
+create table if not exists public.feedback (
+  id          uuid primary key default gen_random_uuid(),
+  kind        text not null check (kind in ('bug', 'idea')),
+  message     text not null check (char_length(message) between 1 and 4000),
+  handle      text,          -- optional: who sent it (free text / their game handle)
+  player_key  text,          -- stable browser identity, for grouping a reporter's notes
+  context     jsonb not null default '{}'::jsonb,  -- {place, vessel, atSea, version, ua, screen, url}
+  status      text not null default 'open' check (status in ('open', 'triaged', 'done', 'wontfix')),
+  created_at  timestamptz not null default now()
+);
+
+alter table public.feedback enable row level security;
+
+-- anyone may submit (anon + authenticated); no read for ordinary players
+drop policy if exists "feedback insertable by anyone" on public.feedback;
+create policy "feedback insertable by anyone"
+  on public.feedback for insert to anon, authenticated with check (true);
+
+-- admins may read + triage feedback in-app
+drop policy if exists "admins read feedback" on public.feedback;
+create policy "admins read feedback"
+  on public.feedback for select to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true));
+
+drop policy if exists "admins update feedback" on public.feedback;
+create policy "admins update feedback"
+  on public.feedback for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true))
+  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true));
+
+create index if not exists feedback_created_idx on public.feedback (created_at desc);
+
+-- rate-limit: at most 12 submissions per browser identity per hour, to blunt
+-- spam from a public link (mirrors the lore rate-limit).
+create or replace function private.enforce_feedback_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare recent int;
+begin
+  if new.player_key is null then return new; end if;
+  select count(*) into recent from public.feedback
+    where player_key = new.player_key and created_at > now() - interval '1 hour';
+  if recent >= 12 then
+    raise exception 'rate_limit: too many submissions in the last hour — please wait a little'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists feedback_rate_limit on public.feedback;
+create trigger feedback_rate_limit
+  before insert on public.feedback
+  for each row execute function private.enforce_feedback_rate_limit();
+
+-- ---------------------------------------------------------------------------
 -- auto-create a profile when a new auth user signs up
 -- (security definer, kept in a private, non-API-exposed schema)
 -- ---------------------------------------------------------------------------

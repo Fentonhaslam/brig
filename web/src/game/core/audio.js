@@ -34,5 +34,5 @@ export function createAudio(src = '/theme.mp3', volume = 0.4) {
   btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
   window.addEventListener('keydown', (e) => { if (e.code === 'KeyM') toggle(); });
 
-  return { el, start, toggle, setVolume: (v) => { el.volume = v; } };
+  return { el, start, toggle, setVolume: (v) => { el.volume = v; }, get playing() { return !el.paused; } };
 }

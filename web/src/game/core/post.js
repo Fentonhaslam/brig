@@ -104,5 +104,14 @@ export function createPost(renderer, scene, camera) {
       composer.render();
     },
     setBloom(strength) { bloom.strength = strength; },
+    // quality levers (see core/quality.js): GTAO is the costly one — disabling it
+    // is the single biggest GPU saving short of bypassing the composer entirely
+    setPasses({ gtao: g = true, bloom: b = true } = {}) { gtao.enabled = g; bloom.enabled = b; },
+    setPixelRatio(dpr) {
+      composer.setPixelRatio(dpr);
+      composer.setSize(window.innerWidth, window.innerHeight);
+      bloom.setSize(window.innerWidth, window.innerHeight);
+      gtao.setSize(window.innerWidth, window.innerHeight);
+    },
   };
 }
