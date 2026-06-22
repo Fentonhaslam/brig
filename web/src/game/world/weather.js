@@ -11,11 +11,11 @@ import {
 
 const GREY = new Color(0x6b7178);
 
-let actx = null;
+import { getAudio } from '../core/sfx.js';
 function thunder(dist = 0.5) {
   try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const a = actx, t = a.currentTime + dist; // a touch after the flash
+    const s = getAudio(); if (!s) return;
+    const { ctx: a, out } = s, t = a.currentTime + dist;
     const len = (a.sampleRate * 1.6) | 0;
     const buf = a.createBuffer(1, len, a.sampleRate);
     const d = buf.getChannelData(0);
@@ -23,9 +23,9 @@ function thunder(dist = 0.5) {
     const n = a.createBufferSource(); n.buffer = buf;
     const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
     const g = a.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.05);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
-    n.connect(lp).connect(g).connect(a.destination); n.start(t);
+    n.connect(lp).connect(g).connect(out); n.start(t);
   } catch {}
 }
 
@@ -33,15 +33,15 @@ function thunder(dist = 0.5) {
 let windGain = null;
 function initWind() {
   try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const a = actx, len = (a.sampleRate * 2) | 0;
+    const s = getAudio(); if (!s) return;
+    const { ctx: a, out } = s, len = (a.sampleRate * 2) | 0;
     const buf = a.createBuffer(1, len, a.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     const src = a.createBufferSource(); src.buffer = buf; src.loop = true;
     const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480;
     windGain = a.createGain(); windGain.gain.value = 0;
-    src.connect(lp).connect(windGain).connect(a.destination); src.start();
+    src.connect(lp).connect(windGain).connect(out); src.start();
   } catch {}
 }
 
@@ -135,7 +135,7 @@ export function createWeather({ scene, water, sky, camera }) {
     // a double-tick flicker reads as a real strike
     flashEl.style.opacity = (flash * (0.55 + 0.45 * Math.sin(flash * 40))).toFixed(3);
 
-    if (windGain) windGain.gain.value = storm * storm * 0.28; // howl rises with the gale
+    if (windGain) windGain.gain.value = storm * storm * 0.12; // howl rises with the gale (toned down)
 
     label.textContent = storm > 0.6 ? '⛈ Storm' : storm > 0.3 ? '🌧 Squally' : storm > 0.12 ? '⛅ Overcast' : '☀ Fair';
   }

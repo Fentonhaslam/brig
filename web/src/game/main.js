@@ -49,6 +49,7 @@ import { createWaypoint } from './systems/waypoint.js';
 import { tier, loadDifficulty, saveDifficulty, TIERS } from './config/difficulty.js';
 import { createDashboard } from './ui/dashboard.js';
 import { createFeedback } from './ui/feedback.js';
+import { createLoginScreen } from './ui/loginscreen.js';
 import { createDevConsole } from './ui/devconsole.js';
 import { installLogFilter, log } from './core/log.js';
 import { initPhysics } from './core/physics.js';
@@ -61,6 +62,12 @@ import { joinWorld } from '../net/presence.js';
 import { pullState, pushState } from '../net/state.js';
 
 const canvas = document.getElementById('c');
+canvas.style.cssText += ';opacity:0;transition:opacity .6s ease';
+
+// Pirate-themed login screen — sits above the canvas while the 3D scene
+// warms up underneath. Dismissed by signing in or choosing Guest.
+createLoginScreen(() => { canvas.style.opacity = '1'; });
+
 const renderer = createRenderer(canvas);
 const stats = createStats();
 
@@ -231,7 +238,7 @@ const spray = createSpray(scene, ship);
 // run out the guns (R) + ring the bell (B)
 const cannons = createCannons(scene, physics, ship);
 window.addEventListener('keydown', (e) => {
-  if (dialogue.isOpen || inscribe.isOpen || player.swimming || intro.active) return;
+  if (dialogue.isOpen || inscribe.isOpen || player.swimming || intro.active || berthed) return;
   if (e.code === 'KeyR') cannons.fire();
   else if (e.code === 'KeyB') cannons.ringBell();
 });
@@ -371,6 +378,11 @@ account.onSignIn(async ({ session, handle: h, userId, isAdmin: serverAdmin }) =>
         if (cloud.skiffOwned) { localStorage.setItem('brig:skiffOwned:' + _ident.key, '1'); skiffOwned = true; }
       } catch {}
     }
+    if (cloud.shipPos) {
+      shipPos.x = cloud.shipPos.x; shipPos.z = cloud.shipPos.z;
+      if (cloud.shipPos.yaw != null) shipYaw = cloud.shipPos.yaw;
+      syncWorld();
+    }
   } else {
     pushPlayerState(); // seed the account from this device
   }
@@ -434,6 +446,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyF') return;
   if (inscribe.isOpen) { inscribe.hide(); return; }
   if (berthed && mode === 'walk' && activeHarbour?.kind === 'keep' && player.position.distanceTo(keepDoorScene) < 6) { inscribe.show(); return; }
+  if (berthed && mode === 'walk' && activeHarbour?.plaque && player.position.distanceTo(plaqueScene) < 5) { dashboard.openIdeas(); return; }
   if (nearNpc && mode === 'walk') { dialogue.open(nearNpc); frameTalk(nearNpc); quests.notify('talk', nearNpc.name); }
 });
 
@@ -500,6 +513,7 @@ let berthCooldown = 0; // grace after casting off, so we don't instantly re-bert
 let harbourBodies = [];
 let swimT = 0; // seconds in the water (auto-rescue fallback)
 const keepDoorScene = new Vector3(0, 0, 1e6); // door of the active port, scene space
+const plaqueScene   = new Vector3(0, 0, 1e6); // Plaque of Brig in Valdara, scene space
 
 function harbourScene(h) { return _hp.copy(h.worldPoint).applyMatrix4(worldGroup.matrix); }
 
@@ -541,6 +555,8 @@ function berth(h) {
     return physics.staticCuboid(c.hx, c.hy, c.hz, _cv.x, _cv.y, _cv.z, rot);
   });
   keepDoorScene.set(h.worldPoint.x + h.keepDoor.dx, h.worldPoint.y + h.keepDoor.dy, h.worldPoint.z + h.keepDoor.dz).applyMatrix4(worldGroup.matrix);
+  if (h.plaque) plaqueScene.set(h.worldPoint.x + h.plaque.dx, h.worldPoint.y + h.plaque.dy, h.worldPoint.z + h.plaque.dz).applyMatrix4(worldGroup.matrix);
+  else plaqueScene.set(0, 0, 1e6);
   // people ashore — placed against the now-fixed world matrix, then shadowed
   townsfolk.populate(h, worldGroup.matrix);
   castShadows(townsfolk.group);
@@ -550,6 +566,17 @@ function berth(h) {
   purse.setMark(); // profit readout resets each time you make port
   ship.setSails(0.12);
   fishing.reset(); // drop any line in progress from the crossing
+  minimap.setBerthed({
+    kind: h.kind, name: h.name,
+    getPlayerDesign: () => {
+      // convert scene player pos → approximate design coords
+      const sp = player.position;
+      const hp = harbourScene(h);
+      const cos = Math.cos(shipYaw), sin = Math.sin(shipYaw);
+      const rx = sp.x - hp.x, rz = sp.z - hp.z;
+      return { x: cos * rx + sin * rz, z: (-sin * rx + cos * rz) * h.dir };
+    },
+  });
 }
 
 function castOff() {
@@ -557,6 +584,7 @@ function castOff() {
   berthed = false; activeHarbour = null;
   berthCooldown = 6; // sail clear before the port can grab us again
   keepDoorScene.set(0, 0, 1e6);
+  plaqueScene.set(0, 0, 1e6);
   harbourBodies.forEach((b) => physics.world.removeRigidBody(b.body));
   harbourBodies = [];
   townsfolk.clear();
@@ -565,10 +593,11 @@ function castOff() {
     bowBody = physics.staticCuboid(c.hx, c.hy, c.hz, c.x, c.y, c.z);
   }
   fishing.reset(); // drop any line in progress while berthed
+  minimap.setBerthed(null);
 }
 
 function updateWalk(dt) {
-  const ax = (dialogue.isOpen || intro.active) ? { x: 0, z: 0 } : input.moveAxis(); // hold still while talking / during the intro
+  const ax = (dialogue.isOpen || intro.active || market.isOpen) ? { x: 0, z: 0 } : input.moveAxis(); // hold still while talking / trading / during the intro
   if (intro.active) moveTarget = null;
   if (ax.x || ax.z) {
     moveTarget = null;
@@ -702,25 +731,8 @@ const fishing = createFishing({
   getAtSea: () => !berthed,
   getActive: () => !dialogue.isOpen && !inscribe.isOpen && !intro.active && !player.swimming,
 });
-// the player dashboard — quests, settings, performance (quality presets + FPS),
-// controls. Opens with ☰ or Esc. Replaces the old standalone difficulty gear.
-const dashboard = createDashboard({
-  quality,
-  getStats: () => ({ calls: renderer.info.render.calls }),
-  quests,
-  objective,
-  difficulty: { tiers: TIERS, get: () => loadDifficulty(), set: (k) => { diff = tier(k); saveDifficulty(k); } },
-  audio,
-  isBusy: () => dialogue.isOpen || inscribe.isOpen || intro.active,
-});
-// tidy the console (swallow benign optional-table 404s) + dev console (backtick;
-// dev build / admin / ?dev=1 link only)
-installLogFilter();
-createDevConsole();
-log.info(`ready · quality ${quality.level}${quality.auto ? ' (auto)' : ''}`);
-
 // in-game feedback — anyone can report a bug or suggest an improvement
-createFeedback({
+const feedback = createFeedback({
   handle,
   playerKey: guestId,
   getContext: () => ({
@@ -729,6 +741,26 @@ createFeedback({
     atSea: !berthed,
   }),
 });
+
+// the player dashboard — quests, the ideas/voting board, settings, performance
+// (quality presets + FPS), controls. Opens with ☰ or Esc. The Ideas tab is the
+// public roadmap (vote when signed in); "Suggest" opens the feedback panel.
+const dashboard = createDashboard({
+  quality,
+  getStats: () => ({ calls: renderer.info.render.calls }),
+  quests,
+  objective,
+  difficulty: { tiers: TIERS, get: () => loadDifficulty(), set: (k) => { diff = tier(k); saveDifficulty(k); } },
+  audio,
+  isBusy: () => dialogue.isOpen || inscribe.isOpen || intro.active,
+  account,
+  onSuggest: () => feedback.open(),
+});
+// tidy the console (swallow benign optional-table 404s) + dev console (backtick;
+// dev build / admin / ?dev=1 link only)
+installLogFilter();
+createDevConsole();
+log.info(`ready · quality ${quality.level}${quality.auto ? ' (auto)' : ''}`);
 
 // waypoint guidance — the 3D "shiny" beacon + an on-screen pointer to the
 // current objective (resolved each frame from the active quest step)
@@ -755,6 +787,7 @@ function pushPlayerState() {
   if (!stateKey) return;
   pushState(stateKey, handle, {
     quests: quests.snapshot(), hull: hull.snapshot(), vessel: vesselKind, skiffOwned,
+    shipPos: { x: shipPos.x, z: shipPos.z, yaw: shipYaw },
   });
 }
 window.addEventListener('pagehide', pushPlayerState);

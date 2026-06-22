@@ -286,7 +286,10 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
   // shared: quay deck + pilings + gangway with rails
   solid(0, 1.8, 22, 12, 0.6, 22, C.wood);
   for (const px of [-10, -5, 0, 5, 10]) B.cyl(C.wood, 0.5, 0.6, 4, ...at(px, -0.4, 1), 6);
-  solid(0, 2.28, -2.5, 1.8, 0.12, 3.2, C.wood);
+  // gangway: thin visual, but physics collider is thick so the player capsule
+  // can't tunnel through it when running onto the plank at speed
+  B.box(C.wood, 3.6, 0.24, 6.4, ...at(0, 2.28, -2.5));
+  colliders.push({ hx: 1.8, hy: 0.6, hz: 3.2, dx: 0, dy: 1.9 + YLIFT, dz: -2.5 * dir });
   B.box(C.wood, 0.16, 0.5, 6.4, ...at(-1.7, 2.6, -2.5));
   B.box(C.wood, 0.16, 0.5, 6.4, ...at(1.7, 2.6, -2.5));
 
@@ -495,6 +498,16 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     B.cyl(C.stone, 1.6, 1.9, 0.8, ...at(0, G + 0.4, 32), 8);
     B.box(C.cream, 0.4, 3.2, 0.4, ...at(0, G + 2.4, 32));
     B.box(C.cream, 1.6, 0.4, 0.4, ...at(0, G + 3.4, 32));
+    colliders.push({ hx: 1.0, hy: 0.5, hz: 1.0, dx: 0, dy: G + 0.5 + YLIFT, dz: 32 * dir }); // stone base
+    colliders.push({ hx: 0.22, hy: 1.6, hz: 0.22, dx: 0, dy: G + 2.4 + YLIFT, dz: 32 * dir }); // upright
+
+    // the Plaque of Brig — a stone lectern by the cross. Press F here to read the
+    // Book of Brig (ideas made real) and to propose / vote on changes.
+    B.box(C.stone, 0.7, 1.1, 0.7, ...at(4, G + 0.55, 34));         // plinth
+    B.box(C.stone, 1.7, 1.2, 0.35, ...at(4, G + 1.5, 34));         // tablet back
+    B.box(C.cream, 1.4, 0.95, 0.08, ...at(4, G + 1.5, 34.2));      // inscribed face
+    B.box(C.roof, 1.8, 0.16, 0.5, ...at(4, G + 2.18, 34));         // little tiled cap
+    colliders.push({ hx: 0.95, hy: 1.1, hz: 0.45, dx: 4, dy: G + 1 + YLIFT, dz: 34 * dir });
 
     // --- plaza & avenue life: orange trees, a fountain, market stalls, lamps ---
     // orange trees line Valdara's avenues — solid trunks, so you weave between
@@ -663,6 +676,9 @@ function buildHarbour(B, { local, worldOrigin, dir = 1, kind, approachYaw, name 
     worldPoint: worldOrigin.clone().add(local),
     keepDoor: { dx: door.dx, dy: door.dy + YLIFT, dz: door.dz * dir },
     walkY: 2.4 + YLIFT, // top of the quay/cobbles, relative to worldPoint — where folk stand
+    // the Plaque of Brig stands in Valdara's plaza (design 4,34) — its world-space
+    // offset, projected to scene at berth time like the keep door
+    plaque: kind === 'city' ? { dx: 4, dy: 2.4 + YLIFT, dz: 34 * dir } : null,
     colliders, meshes,
   };
 }

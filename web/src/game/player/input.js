@@ -46,7 +46,7 @@ export function createInput(dom, camera) {
   return {
     keys,
     isDown: (code) => keys.has(code),
-    running: () => keys.has('ShiftLeft') || keys.has('ShiftRight'),
+    running: () => true, // auto-sprint — no key needed; Shift was friction, town is small
     moveAxis,
     onClick: (fn) => clickListeners.push(fn),
   };

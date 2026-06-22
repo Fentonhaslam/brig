@@ -7,33 +7,29 @@
 import { Mesh, SphereGeometry } from 'three';
 import { pbrMaterial } from '../core/materials.js';
 
-let actx = null;
-function ctx() {
-  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
-  return actx;
-}
+import { getAudio } from '../core/sfx.js';
 function boom() {
-  const a = ctx(); if (!a) return;
-  const t = a.currentTime;
+  const s = getAudio(); if (!s) return;
+  const { ctx: a, out } = s, t = a.currentTime;
   const o = a.createOscillator(); o.type = 'sine';
   o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.35);
   const g = a.createGain(); g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.45);
+  o.connect(g).connect(out); o.start(t); o.stop(t + 0.45);
   const len = (a.sampleRate * 0.18) | 0;
   const buf = a.createBuffer(1, len, a.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) * (1 - i / len);
   const n = a.createBufferSource(); n.buffer = buf;
   const ng = a.createGain(); ng.gain.value = 0.4;
-  n.connect(ng).connect(a.destination); n.start(t);
+  n.connect(ng).connect(out); n.start(t);
 }
 function clang() {
-  const a = ctx(); if (!a) return;
-  const t = a.currentTime;
+  const s = getAudio(); if (!s) return;
+  const { ctx: a, out } = s, t = a.currentTime;
   for (const [f, gain] of [[1180, 0.25], [1760, 0.18], [2640, 0.1]]) {
     const o = a.createOscillator(); o.type = 'sine'; o.frequency.value = f;
     const g = a.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 1.1);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 1.1);
   }
 }
 

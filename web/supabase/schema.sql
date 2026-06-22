@@ -201,7 +201,8 @@ create table if not exists public.feedback (
   handle      text,          -- optional: who sent it (free text / their game handle)
   player_key  text,          -- stable browser identity, for grouping a reporter's notes
   context     jsonb not null default '{}'::jsonb,  -- {place, vessel, atSea, version, ua, screen, url}
-  status      text not null default 'open' check (status in ('open', 'triaged', 'done', 'wontfix')),
+  status      text not null default 'open' check (status in ('open', 'planned', 'triaged', 'done', 'wontfix')),
+  votes       integer not null default 0,
   created_at  timestamptz not null default now()
 );
 
@@ -225,6 +226,60 @@ create policy "admins update feedback"
   with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true));
 
 create index if not exists feedback_created_idx on public.feedback (created_at desc);
+create index if not exists feedback_votes_rank_idx on public.feedback (votes desc) where kind = 'idea';
+
+-- improvement IDEAS are a PUBLIC, votable roadmap: anyone may read them (bug
+-- reports stay private to admins). Players see the board; signed-in users vote.
+drop policy if exists "ideas readable by anyone" on public.feedback;
+create policy "ideas readable by anyone"
+  on public.feedback for select to anon, authenticated using (kind = 'idea');
+
+-- ---------------------------------------------------------------------------
+-- feedback_votes: one upvote per signed-in user per idea. Voting requires an
+-- account (so it's one-person-one-vote); the tally drives what gets built.
+-- ---------------------------------------------------------------------------
+create table if not exists public.feedback_votes (
+  feedback_id uuid not null references public.feedback (id) on delete cascade,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (feedback_id, user_id)
+);
+
+alter table public.feedback_votes enable row level security;
+
+drop policy if exists "votes readable" on public.feedback_votes;
+create policy "votes readable"
+  on public.feedback_votes for select to anon, authenticated using (true);
+
+drop policy if exists "users cast own vote" on public.feedback_votes;
+create policy "users cast own vote"
+  on public.feedback_votes for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "users retract own vote" on public.feedback_votes;
+create policy "users retract own vote"
+  on public.feedback_votes for delete to authenticated using (auth.uid() = user_id);
+
+-- keep feedback.votes in sync with the rows in feedback_votes
+create or replace function private.sync_vote_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.feedback set votes = votes + 1 where id = new.feedback_id;
+  elsif tg_op = 'DELETE' then
+    update public.feedback set votes = greatest(0, votes - 1) where id = old.feedback_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists feedback_votes_count on public.feedback_votes;
+create trigger feedback_votes_count
+  after insert or delete on public.feedback_votes
+  for each row execute function private.sync_vote_count();
 
 -- rate-limit: at most 12 submissions per browser identity per hour, to blunt
 -- spam from a public link (mirrors the lore rate-limit).

@@ -6,7 +6,12 @@
 // thin presentation layer over quests/quality/audio/difficulty.
 //
 // EXPORT: createDashboard({ quality, getStats, quests, objective, difficulty,
-//                           audio, isBusy }) -> { open, close, toggle, isOpen }
+//                           audio, isBusy, account, onSuggest })
+//          -> { open, close, toggle, isOpen }
+
+import { listIdeas, myVotes, toggleVote, listAllFeedback, setFeedbackStatus } from '../../net/ideas.js';
+import { supabase } from '../../net/supabase.js';
+import { getSfxVolume, setSfxVolume } from '../core/sfx.js';
 
 const CSS = `
 #dash-btn {
@@ -48,6 +53,27 @@ const CSS = `
 #dash kbd { display: inline-block; min-width: 16px; text-align: center; padding: 2px 7px; margin-right: 6px; font: 600 12px system-ui;
   background: rgba(0,0,0,.4); border: 1px solid rgba(190,158,96,.4); border-radius: 4px; color: #f0dca8; }
 #dash .help div { padding: 6px 0; font-size: 15px; }
+#dash .suggest { margin-bottom: 14px; padding: 10px 14px; font: 600 13px system-ui; cursor: pointer; color: #fff3df;
+  background: linear-gradient(180deg,#9a6a20,#6a4410); border: 1px solid #c8a050; border-radius: 6px; }
+#dash .idea { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid rgba(200,160,90,.14); }
+#dash .vote { flex: 0 0 auto; width: 48px; text-align: center; cursor: pointer; padding: 6px 0; border-radius: 6px;
+  border: 1px solid rgba(190,158,96,.4); background: rgba(0,0,0,.25); color: #d8c39a; }
+#dash .vote .n { display: block; font: 700 16px system-ui; } #dash .vote .a { font-size: 11px; opacity: .8; }
+#dash .vote.voted { background: linear-gradient(180deg,#7a5a20,#54380e); color: #fff3df; border-color: #c8a050; }
+#dash .idea .txt { flex: 1; } #dash .idea .m { font-size: 15px; line-height: 1.4; } #dash .idea .by { font-size: 12px; opacity: .55; margin-top: 3px; }
+#dash .badge { font: 600 10px system-ui; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; }
+#dash .badge.planned { background: #2d4a6a; color: #cfe3ff; } #dash .badge.done { background: #2f5a36; color: #cfeccf; } #dash .badge.wontfix { background: #5a2f2f; color: #f0caca; }
+#dash .report { padding: 12px 0; border-bottom: 1px solid rgba(200,160,90,.14); }
+#dash .report .rhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+#dash .report .rkind { font: 700 10px system-ui; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; }
+#dash .report .rkind.bug { background: #5a2020; color: #ffcfcf; } #dash .report .rkind.idea { background: #2d4a6a; color: #cfe3ff; }
+#dash .report .rmsg { font-size: 15px; line-height: 1.4; margin-bottom: 4px; }
+#dash .report .rmeta { font-size: 12px; opacity: .5; }
+#dash .report .ractions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+#dash .report .ractions button { font: 600 11px system-ui; padding: 3px 10px; border-radius: 4px; cursor: pointer;
+  background: rgba(0,0,0,.3); border: 1px solid rgba(190,158,96,.3); color: #d8c39a; }
+#dash .report .ractions button:hover { border-color: #c8a050; color: #fff3df; }
+#dash .report .ractions button.active { background: rgba(50,80,50,.4); border-color: #6a9a6a; color: #cfeccf; }
 `;
 
 const QUALITY_NOTE = {
@@ -56,7 +82,7 @@ const QUALITY_NOTE = {
   high: 'Everything — ambient occlusion, bloom, shadows, crisp pixels.',
 };
 
-export function createDashboard({ quality, getStats = () => ({}), quests, objective, difficulty, audio, isBusy = () => false }) {
+export function createDashboard({ quality, getStats = () => ({}), quests, objective, difficulty, audio, isBusy = () => false, account = null, onSuggest = null }) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
 
   const btn = document.createElement('button');
@@ -70,9 +96,11 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
       <div class="close">CLOSE · ESC</div>
       <div class="tabs">
         <button data-tab="quests" class="on">Quests</button>
+        <button data-tab="ideas">Ideas</button>
         <button data-tab="settings">Settings</button>
         <button data-tab="perf">Performance</button>
         <button data-tab="help">Controls</button>
+        <button data-tab="reports" id="dash-reports-tab" style="display:none">Reports</button>
       </div>
       <div class="body" id="dash-body"></div>
     </div>`;
@@ -101,12 +129,18 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
     const tiers = difficulty?.tiers || {};
     const diffBtns = Object.entries(tiers).map(([k, t]) =>
       `<button data-diff="${k}" class="${k === cur ? 'on' : ''}">${t.label || k}</button>`).join('');
+    const sfxVol = Math.round(getSfxVolume() * 100);
     return `<h3>Settings</h3>
       <div class="lab">The crossing — difficulty</div>
       <div class="meta">How harshly the Atlantic punishes a weak hull.</div>
       <div class="seg">${diffBtns}</div>
       <div class="lab">Music</div>
-      <div class="row"><button class="toggle" id="dash-mute">${audio?.playing ? '🔊 On' : '🔇 Off'}</button><span class="meta">Toggle the theme (or press M).</span></div>`;
+      <div class="row"><button class="toggle" id="dash-mute">${audio?.playing ? '🔊 On' : '🔇 Off'}</button><span class="meta">Toggle the theme (or press M).</span></div>
+      <div class="lab">Sound Effects</div>
+      <div class="row" style="gap:12px;align-items:center">
+        <input type="range" id="dash-sfx" min="0" max="100" value="${sfxVol}" style="flex:1;accent-color:#c8a050">
+        <span class="meta" id="dash-sfxval" style="min-width:32px">${sfxVol}%</span>
+      </div>`;
   }
 
   function renderPerf() {
@@ -134,8 +168,85 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
     </div>`;
   }
 
+  // user-submitted text goes through innerHTML, so escape it
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // the suggestions board — public idea list, most-voted first; signed-in users
+  // upvote to prioritise. Async: paints a frame, then fills from Supabase.
+  async function loadIdeas() {
+    const uid = account?.session?.user?.id || null;
+    body.innerHTML = `<h3>Ideas &amp; Improvements</h3>
+      <div class="meta" style="margin-bottom:12px">Suggest changes, and vote for what gets built next.${uid ? '' : ' <b>Sign in to vote.</b>'}</div>
+      ${onSuggest ? '<button class="suggest" id="dash-suggest">💡 Suggest an improvement</button>' : ''}
+      <div id="dash-ideas"><div class="meta">Loading…</div></div>`;
+    const sug = body.querySelector('#dash-suggest'); if (sug) sug.onclick = () => { close(); onSuggest(); };
+    const wrap = body.querySelector('#dash-ideas');
+    let ideas = [], voted = new Set();
+    try { [ideas, voted] = await Promise.all([listIdeas(), myVotes(uid)]); }
+    catch { wrap.innerHTML = '<div class="meta">Could not load the board (offline?).</div>'; return; }
+    if (tab !== 'ideas') return; // switched away while loading
+    if (!ideas.length) { wrap.innerHTML = '<div class="meta">No ideas yet — be the first to suggest one!</div>'; return; }
+    wrap.innerHTML = ideas.map((it) => {
+      const v = voted.has(it.id);
+      const badge = it.status && it.status !== 'open' ? `<span class="badge ${esc(it.status)}">${esc(it.status)}</span>` : '';
+      return `<div class="idea">
+        <div class="vote ${v ? 'voted' : ''}" data-id="${esc(it.id)}"><span class="n">${it.votes ?? 0}</span><span class="a">▲ vote</span></div>
+        <div class="txt"><div class="m">${esc(it.message)}${badge}</div><div class="by">— ${esc(it.handle) || 'a sailor'}</div></div>
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('.vote').forEach((btn) => { btn.onclick = () => castVote(btn); });
+  }
+
+  async function castVote(btn) {
+    const uid = account?.session?.user?.id;
+    if (!uid) { account?.openSignIn?.(); return; }   // voting needs an account
+    const id = btn.dataset.id, was = btn.classList.contains('voted');
+    btn.style.pointerEvents = 'none';
+    try {
+      const now = await toggleVote(id, uid, was);
+      btn.classList.toggle('voted', now);
+      const n = btn.querySelector('.n');
+      n.textContent = Math.max(0, (parseInt(n.textContent, 10) || 0) + (now ? 1 : -1));
+    } catch (e) { console.warn('[brig] vote failed', e); }
+    finally { btn.style.pointerEvents = ''; }
+  }
+
+  async function loadReports() {
+    body.innerHTML = `<h3>Feedback Inbox</h3><div class="meta" style="margin-bottom:12px">All submitted bugs and ideas, newest first.</div><div id="dash-rlist"><div class="meta">Loading…</div></div>`;
+    const wrap = body.querySelector('#dash-rlist');
+    const items = await listAllFeedback();
+    if (tab !== 'reports') return;
+    if (!items.length) { wrap.innerHTML = '<div class="meta">No submissions yet.</div>'; return; }
+    const STATUSES = ['open', 'planned', 'done', 'wontfix'];
+    wrap.innerHTML = items.map((it) => {
+      const ctx = it.context || {};
+      const when = new Date(it.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      const place = [ctx.place, ctx.vessel, ctx.version].filter(Boolean).join(' · ');
+      const statusBtns = STATUSES.map((s) =>
+        `<button data-rid="${esc(it.id)}" data-rs="${s}" class="${it.status === s ? 'active' : ''}">${s}</button>`).join('');
+      return `<div class="report" id="r-${esc(it.id)}">
+        <div class="rhead"><span class="rkind ${esc(it.kind)}">${it.kind === 'bug' ? '🐞 Bug' : '💡 Idea'}</span><span class="rmeta">${esc(it.handle) || 'anonymous'} · ${when}</span></div>
+        <div class="rmsg">${esc(it.message)}</div>
+        ${place ? `<div class="rmeta">${esc(place)}</div>` : ''}
+        <div class="ractions">${statusBtns}</div>
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('[data-rid]').forEach((btn) => {
+      btn.onclick = async () => {
+        const id = btn.dataset.rid, status = btn.dataset.rs;
+        try {
+          await setFeedbackStatus(id, status);
+          const row = wrap.querySelector(`#r-${id}`);
+          if (row) row.querySelectorAll('[data-rid]').forEach((b) => b.classList.toggle('active', b.dataset.rs === status));
+        } catch (e) { console.warn('[brig] status update failed', e); }
+      };
+    });
+  }
+
   function render() {
     el.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+    if (tab === 'ideas') { loadIdeas(); return; }
+    if (tab === 'reports') { loadReports(); return; }
     body.innerHTML = tab === 'quests' ? renderQuests()
       : tab === 'settings' ? renderSettings()
       : tab === 'perf' ? renderPerf() : renderHelp();
@@ -147,6 +258,9 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
     const mute = body.querySelector('#dash-mute'); if (mute) mute.onclick = () => { audio.toggle(); render(); };
     body.querySelectorAll('button[data-q]').forEach((b) => { b.onclick = () => { quality.set(b.dataset.q); render(); }; });
     const auto = body.querySelector('#dash-auto'); if (auto) auto.onclick = () => { quality.setAuto?.(); render(); };
+    const sfx = body.querySelector('#dash-sfx');
+    const sfxVal = body.querySelector('#dash-sfxval');
+    if (sfx) sfx.oninput = () => { const v = sfx.value / 100; setSfxVolume(v); if (sfxVal) sfxVal.textContent = sfx.value + '%'; };
   }
 
   function tickFps() {
@@ -155,7 +269,18 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
     if (dEl) { const st = getStats() || {}; dEl.textContent = st.calls ?? '–'; }
   }
 
-  function open() { el.classList.add('show'); render(); fpsTimer = setInterval(() => { if (tab === 'perf') tickFps(); }, 500); }
+  async function revealAdminTab() {
+    const uid = account?.session?.user?.id;
+    if (!uid) return;
+    const { data } = await supabase
+      .from('profiles').select('is_admin').eq('id', uid).single();
+    if (data?.is_admin) {
+      const t = el.querySelector('#dash-reports-tab');
+      if (t) t.style.display = '';
+    }
+  }
+
+  function open() { el.classList.add('show'); render(); revealAdminTab(); fpsTimer = setInterval(() => { if (tab === 'perf') tickFps(); }, 500); }
   function close() { el.classList.remove('show'); if (fpsTimer) { clearInterval(fpsTimer); fpsTimer = null; } }
   const isOpen = () => el.classList.contains('show');
   function toggle() { isOpen() ? close() : open(); }
@@ -172,5 +297,8 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
     open();
   });
 
-  return { open, close, toggle, isOpen };
+  // open straight to the suggestions board (used by the plaza plaque)
+  function openIdeas() { tab = 'ideas'; open(); }
+
+  return { open, close, toggle, isOpen, openIdeas };
 }
