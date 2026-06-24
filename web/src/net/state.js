@@ -1,30 +1,29 @@
-// Cloud-backed player progression — quests, hull condition and which vessel you
-// own. The hold (cargo/coin) has its own `inventories` table; this carries the
-// rest so a signed-in player keeps their progress across devices (and a cache
-// wipe). Same shape as inventory's sync: best-effort, keyed by account, and a
-// silent no-op when offline or before the `player_state` table is applied
-// (see web/supabase/schema.sql) — the game stays fully playable on localStorage.
+// Cloud-backed player progression — quests, hull condition, vessel, and last
+// known ship position. Keyed by the authenticated user's UUID (FK to
+// auth.users) so only the owner can read or write their own row (see
+// player_state RLS in supabase/schema.sql). Guests stay localStorage-only;
+// cloud sync activates on sign-in. Silent no-op when offline.
 
 import { supabase, online } from './supabase.js';
 
-// fetch the stored state blob for a key, or null (missing row / no table / offline)
-export async function pullState(key) {
+// fetch the stored state blob for the signed-in user, or null (no row / offline)
+export async function pullState(userId) {
   if (!online) return null;
   try {
     const { data, error } = await supabase
-      .from('player_state').select('state').eq('player_key', key).maybeSingle();
+      .from('player_state').select('state').eq('user_id', userId).maybeSingle();
     if (error || !data) return null;
     return data.state || null;
   } catch { return null; }
 }
 
-// upsert the state blob for a key (handle stored for readability/debugging)
-export async function pushState(key, handle, state) {
+// upsert the state blob for the signed-in user
+export async function pushState(userId, state) {
   if (!online) return;
   try {
     await supabase.from('player_state').upsert(
-      { player_key: key, handle, state, updated_at: new Date().toISOString() },
-      { onConflict: 'player_key' },
+      { user_id: userId, state, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' },
     );
   } catch {}
 }

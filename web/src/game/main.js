@@ -360,15 +360,18 @@ account.onSignIn(async ({ session, handle: h, userId, isAdmin: serverAdmin }) =>
   moderation.setAdmin(!!serverAdmin);
   streamWelcome.hide();
 
-  // progression (quests/hull/vessel) follows the account too — re-key the local
-  // saves, then reconcile with the cloud: pull the account's stored progress if
-  // it exists, otherwise seed it from what this device has. No-ops gracefully
-  // offline / before the player_state table is applied.
+  // progression (quests/hull/vessel/position) follows the account — re-key the
+  // local saves then reconcile with the cloud. stateKey is the raw userId UUID
+  // used as the DB primary key; acctKey is only used for localStorage namespacing.
   const acctKey = 'acct:' + userId;
   quests.setKey('brig:quests:' + acctKey);
   hull.setKey('brig:hull:' + acctKey);
-  stateKey = acctKey;
-  const cloud = await pullState(acctKey);
+  stateKey = userId; // UUID — matches player_state.user_id in the DB
+  // Immediately restore from this device's account localStorage so the player
+  // sees correct progress before the cloud round-trip completes.
+  quests.load();
+  hull.load();
+  const cloud = await pullState(userId);
   if (cloud) {
     quests.restore(cloud.quests);
     hull.restore(cloud.hull);
@@ -379,12 +382,24 @@ account.onSignIn(async ({ session, handle: h, userId, isAdmin: serverAdmin }) =>
       } catch {}
     }
     if (cloud.shipPos) {
-      shipPos.x = cloud.shipPos.x; shipPos.z = cloud.shipPos.z;
-      if (cloud.shipPos.yaw != null) shipYaw = cloud.shipPos.yaw;
-      syncWorld();
+      // restore the player to where they last were — at a named port or at sea.
+      // the game always starts berthed at Valdara, so we cast off first then
+      // either re-berth at the saved port or place the ship at the saved sea pos.
+      const savedHarbour = cloud.shipPos.harbour
+        ? harbours.find((h) => h.name === cloud.shipPos.harbour) : null;
+      if (savedHarbour) {
+        castOff();
+        berth(savedHarbour);
+        spawnAshore();
+      } else {
+        castOff();
+        shipPos.x = cloud.shipPos.x; shipPos.z = cloud.shipPos.z;
+        if (cloud.shipPos.yaw != null) shipYaw = cloud.shipPos.yaw;
+        syncWorld();
+      }
     }
   } else {
-    pushPlayerState(); // seed the account from this device
+    pushPlayerState(); // no cloud row yet — seed it from this device's state
   }
 });
 const world = joinWorld({ handle, userId: guestId });
@@ -785,9 +800,9 @@ function updateWaypoint(dt, t) {
 // sign-in seed, foundering, building the skiff, and tab close.
 function pushPlayerState() {
   if (!stateKey) return;
-  pushState(stateKey, handle, {
+  pushState(stateKey, {
     quests: quests.snapshot(), hull: hull.snapshot(), vessel: vesselKind, skiffOwned,
-    shipPos: { x: shipPos.x, z: shipPos.z, yaw: shipYaw },
+    shipPos: { x: shipPos.x, z: shipPos.z, yaw: shipYaw, harbour: activeHarbour?.name ?? null },
   });
 }
 window.addEventListener('pagehide', pushPlayerState);

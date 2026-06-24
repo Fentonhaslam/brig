@@ -22,7 +22,7 @@ export function createAudio(src = '/theme.mp3', volume = 0.4) {
   const btn = document.createElement('button');
   btn.textContent = '🔊';
   btn.title = 'Music (M)';
-  btn.style.cssText = 'position:fixed;top:14px;right:14px;z-index:80;width:38px;height:38px;'
+  btn.style.cssText = 'position:fixed;top:14px;right:14px;z-index:1000;width:38px;height:38px;'
     + 'border:none;border-radius:50%;font-size:17px;cursor:pointer;color:#f3e8cf;'
     + 'background:rgba(10,30,45,.55);backdrop-filter:blur(3px)';
   document.body.appendChild(btn);

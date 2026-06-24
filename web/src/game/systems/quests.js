@@ -15,6 +15,8 @@
 const QUESTS = {
   berth: {
     name: 'A Berth of Your Own',
+    chain: 'friar',
+    doneHint: 'Your skiff is built — seek Fray Bartolomé at the cathedral steps for another task.',
     steps: [
       { id: 'meet-master', title: 'Speak with the Harbourmaster', hint: 'He keeps the Valdara quay — press F to speak.', trigger: { talk: 'Harbourmaster Quintero' } },
       { id: 'to-triana', title: 'Cross the Puente Viejo into Ribalta', hint: 'The shipwrights and chandlers keep the far bank.', trigger: { reach: { harbour: 'Valdara', dx: -38, dz: 18, r: 8 } } },
@@ -23,11 +25,43 @@ const QUESTS = {
       { id: 'build', title: 'Bring the materials to the shipwright to lay your keel', hint: 'Your skiff begins on the stocks. (Shipwright build — coming next.)', trigger: { flag: 'skiff-built' } },
     ],
   },
+
+  friar: {
+    name: "Fray Bartolomé's Letter",
+    chain: 'manifest',
+    doneHint: 'A small kindness, well repaid. Speak with Mercader Esquivel — he has lost something in the plaza.',
+    steps: [
+      { id: 'ask-friar',    title: 'Speak with Fray Bartolomé',          hint: 'The friar waits at the cathedral steps in Valdara — press F to speak.',                               trigger: { talk: 'Fray Bartolomé' } },
+      { id: 'find-lope',   title: 'Deliver the letter to Don Lope',      hint: 'Don Lope stands near the upper gate — hand him the friar\'s letter.',                               trigger: { talk: 'Don Lope' } },
+      { id: 'return-friar', title: "Return Don Lope's reply to the friar", hint: 'Bring the reply back to Fray Bartolomé at the cathedral steps.',                                    trigger: { talk: 'Fray Bartolomé', reward: { coin: 50 } } },
+    ],
+  },
+
+  manifest: {
+    name: "The Merchant's Manifest",
+    chain: 'fisherwoman',
+    doneHint: 'Honest work, honestly paid. Sail to Bocamar — the fisherwoman on the quay has a wager for you.',
+    steps: [
+      { id: 'ask-merchant',    title: 'Speak with Mercader Esquivel',          hint: 'The merchant stands at the market end of the Valdara plaza.',                                      trigger: { talk: 'Mercader Esquivel' } },
+      { id: 'find-manifest',   title: 'Find the lost manifest near the plaza', hint: 'Search near the fountain between the market and the cathedral — walk the open square.',           trigger: { reach: { harbour: 'Valdara', dx: 2, dz: 42, r: 8 } } },
+      { id: 'return-manifest', title: 'Return the manifest to Esquivel',       hint: 'He will reward you for its return.',                                                              trigger: { talk: 'Mercader Esquivel', reward: { coin: 75 } } },
+    ],
+  },
+
+  fisherwoman: {
+    name: "The Fisherwoman's Wager",
+    doneHint: 'The sea accepts the offering. May the crossing carry you kindly.',
+    steps: [
+      { id: 'ask-sancha',   title: 'Speak with Vieja Sancha at Bocamar',       hint: 'Sail downriver to Bocamar — the fisherwoman on the quay has a wager for you.',                   trigger: { talk: 'Vieja Sancha' } },
+      { id: 'catch-fish',   title: 'Catch 3 fish',                             hint: 'Press C near the water to cast your line — fishing spots along the Bocamar coast and at sea.',   trigger: { have: { fish: 3 } } },
+      { id: 'claim-wager',  title: 'Return to Vieja Sancha to collect',        hint: 'She owes you — find her on the Bocamar quay.',                                                   trigger: { talk: 'Vieja Sancha', reward: { coin: 80, items: { biscuit: 2 } } } },
+    ],
+  },
 };
 
 export function createQuests({ objective, inventory, sceneAt, getBerthedName, persistKey = 'brig:quests' }) {
   let pk = persistKey;
-  const state = { active: null, step: 0, flags: {} };
+  const state = { active: null, step: 0, flags: {}, completed: [] };
   const _p = {}; // scratch
 
   function save() {
@@ -40,9 +74,8 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
         const p = JSON.parse(raw);
         if (p.active !== undefined) state.active = p.active;
         if (typeof p.step === 'number') state.step = p.step;
-        // merge INTO the existing flags object so the exposed `flags` reference
-        // (window.brig.quests.flags, gather's skiff-built check) stays live
         if (p.flags) Object.assign(state.flags, p.flags);
+        if (Array.isArray(p.completed)) p.completed.forEach(id => { if (!state.completed.includes(id)) state.completed.push(id); });
       }
     } catch {}
     refreshHUD();
@@ -76,13 +109,16 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     if (s && s.trigger && s.trigger.reward) grant(s.trigger.reward);
     state.step += 1;
     if (state.step >= q.steps.length) {
-      // quest complete (for now the spine ends at the build step until Phase 2/3)
-      objective.set(`✓ ${q.name}`, 'Your voyage continues — provision at Bocamar and dare the crossing.');
+      objective.set(`✓ ${q.name}`, q.doneHint || 'Your voyage continues.');
+      const chain = q.chain;
+      if (!state.completed.includes(state.active)) state.completed.push(state.active);
       state.active = null; state.step = 0;
+      save();
+      if (chain && QUESTS[chain]) setTimeout(() => start(chain), 3000);
     } else {
       refreshHUD();
+      save();
     }
-    save();
   }
 
   // fired by main when a dialogue opens on an NPC
@@ -121,12 +157,13 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
   // restore merges into the live flags object so the exposed `flags` reference
   // (window.brig.quests.flags, gather's skiff-built check) stays valid.
   function setKey(k) { pk = k; }
-  function snapshot() { return { active: state.active, step: state.step, flags: { ...state.flags } }; }
+  function snapshot() { return { active: state.active, step: state.step, flags: { ...state.flags }, completed: [...state.completed] }; }
   function restore(p) {
     if (!p) return;
     if (p.active !== undefined) state.active = p.active;
     if (typeof p.step === 'number') state.step = p.step;
     if (p.flags) Object.assign(state.flags, p.flags);
+    if (Array.isArray(p.completed)) p.completed.forEach(id => { if (!state.completed.includes(id)) state.completed.push(id); });
     save(); refreshHUD();
   }
 
@@ -152,8 +189,12 @@ export function createQuests({ objective, inventory, sceneAt, getBerthedName, pe
     };
   }
 
+  function completedList() {
+    return state.completed.map(id => ({ id, name: QUESTS[id]?.name ?? id }));
+  }
+
   return {
-    start, notify, update, load, save, flag, setKey, snapshot, restore, currentTarget, progress,
+    start, notify, update, load, save, flag, setKey, snapshot, restore, currentTarget, progress, completedList,
     get active() { return state.active; },
     get step() { return state.step; },
     get stepId() { const s = curStep(); return s && s.id; },

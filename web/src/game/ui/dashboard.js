@@ -112,16 +112,37 @@ export function createDashboard({ quality, getStats = () => ({}), quests, object
 
   function renderQuests() {
     const p = quests?.progress?.();
-    const cur = objective?.current;
-    if (!p) {
-      return `<h3>Quests</h3><div class="meta">${cur ? `<div class="q-cur"><div class="t">${cur.title || cur}</div>${cur.hint ? `<div class="h">${cur.hint}</div>` : ''}</div>` : 'No active quest right now. Explore the port and talk to the townsfolk.'}</div>`;
+    const done = quests?.completedList?.() ?? [];
+
+    if (!p && !done.length) {
+      return `<h3>Quest Journal</h3><div class="meta">No quests yet — explore the port and speak with the townsfolk to begin your voyage.</div>`;
     }
-    const steps = p.steps.map((s) => `
-      <div class="step ${s.done ? 'done' : ''} ${s.current ? 'cur' : ''}">
-        <span class="mk">${s.done ? '✓' : s.current ? '➤' : '·'}</span>
-        <span class="x">${s.title}${s.current && s.hint ? `<div class="h" style="font-size:13px;opacity:.75;font-style:italic">${s.hint}</div>` : ''}</span>
-      </div>`).join('');
-    return `<h3>${p.name}</h3><div class="meta" style="margin-bottom:10px">Your journey to a ship of your own.</div>${steps}`;
+
+    let html = '<h3>Quest Journal</h3>';
+
+    if (p) {
+      html += `<div class="lab" style="margin-top:0">Active</div>`;
+      html += `<div style="font-size:17px;color:#e8b860;margin-bottom:8px">${p.name}</div>`;
+      html += p.steps.map((s) => `
+        <div class="step ${s.done ? 'done' : ''} ${s.current ? 'cur' : ''}">
+          <span class="mk">${s.done ? '✓' : s.current ? '➤' : '·'}</span>
+          <span class="x">${s.title}${s.current && s.hint ? `<div style="font-size:13px;opacity:.75;font-style:italic;margin-top:2px">${s.hint}</div>` : ''}</span>
+        </div>`).join('');
+      html += `<div style="margin-bottom:18px"></div>`;
+    } else {
+      html += `<div class="meta" style="margin-bottom:18px">No active quest — explore the port and talk to the townsfolk.</div>`;
+    }
+
+    if (done.length) {
+      html += `<div class="lab">Completed</div>`;
+      html += done.map((q) => `
+        <div class="step done">
+          <span class="mk">✓</span>
+          <span class="x">${q.name}</span>
+        </div>`).join('');
+    }
+
+    return html;
   }
 
   function renderSettings() {

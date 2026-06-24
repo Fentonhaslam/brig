@@ -46,6 +46,9 @@ export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
 
   // account sync: re-point the save key (sign-in) + snapshot/restore the value
   function setKey(k) { pk = k; }
+  function load() {
+    try { const v = parseFloat(localStorage.getItem(pk)); if (v >= 0 && v <= 100) set(v); } catch {}
+  }
   function snapshot() { return Math.round(hull); }
   function restore(v) { if (typeof v === 'number' && v >= 0 && v <= 100) { set(v); save(); } }
 
@@ -58,5 +61,5 @@ export function createHull({ persistKey = 'brig:hull', onFounder } = {}) {
   }
 
   render();
-  return { update, damage, repair, set, reset, setKey, snapshot, restore, get hull() { return hull; }, get full() { return hull >= 100; }, get foundered() { return foundered; } };
+  return { update, damage, repair, set, reset, setKey, load, snapshot, restore, get hull() { return hull; }, get full() { return hull >= 100; }, get foundered() { return foundered; } };
 }

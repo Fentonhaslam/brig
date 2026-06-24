@@ -55,40 +55,57 @@ const TREES = {
   'Mercader Esquivel': {
     start: 'start',
     tree: {
-      start: { text: 'You came in on the nao? Then you know — everything passes through Valdara now. The Casa del Mar weighs every ounce of it.', choices: [
-        { label: 'What sells in the Indies?', to: 'sell' },
-        { label: 'What comes back?', to: 'back' },
-        { label: 'Good trading to you.', to: null },
+      start: { text: "Sharp eyes, I hope -- I have lost my cargo manifest somewhere near the market stalls. A folded paper, stamped with the Casa del Mar seal. Find it and I will pay well.", choices: [
+        { label: "I found it -- here it is.", to: 'found' },
+        { label: "I will look for it.", to: 'look' },
+        { label: "What sells in the Indies?", to: 'sell' },
+        { label: "Good trading to you.", to: null },
       ] },
-      sell: { text: 'Wine, oil, cloth, iron, tools — anything a colony cannot yet make. Buy it cheap here, and the far quay will pay you dearly for it.', choices: [{ label: 'And the return?', to: 'back' }, { label: 'I’ll remember that.', to: null }] },
-      back: { text: 'Gold and spice, when the fleets are kind. A single hold can make a poor man a hidalgo — or feed the fish. The sea takes its tithe.', choices: [{ label: 'A gambler’s trade.', to: 'gamble' }, { label: 'Worth the risk.', to: null }] },
-      gamble: { text: 'All trade is a wager, friend. The difference is whether you wager with cloth or with your life. Out there, it is often both.', choices: [{ label: '…', to: null }] },
+      found: { text: "God be praised -- you found it! I was half mad with worry. Here, take seventy-five maravedis for your trouble. Worth every coin.", choices: [{ label: "Glad I could help.", to: null }] },
+      look:  { text: "Past the fountain, somewhere near the middle of the plaza -- I had it in my hand just before the noon bell. You will know it by the seal.", choices: [{ label: "I will find it.", to: null }] },
+      sell:  { text: "Wine, oil, cloth, iron, tools -- anything a colony cannot yet make. Buy it cheap here, and the far quay will pay you dearly for it.", choices: [{ label: "And the return?", to: 'back' }, { label: "I will remember that.", to: null }] },
+      back:  { text: "Gold and spice, when the fleets are kind. A single hold can make a poor man a hidalgo -- or feed the fish. The sea takes its tithe.", choices: [{ label: "Worth the risk.", to: null }] },
     },
   },
   'Fray Bartolomé': {
     start: 'start',
     tree: {
-      start: { text: 'The Mirabela still calls the faithful, though it was a Moor’s minaret once. God works through what He inherits.', choices: [
-        { label: 'You sail for the Indies?', to: 'sail' },
-        { label: 'A grand cathedral.', to: 'cath' },
-        { label: 'Peace, brother.', to: null },
+      start: { text: "God sends you at the right moment, friend. I have a letter for Don Lope at the upper gate -- but these old legs will not carry me up the hill today. Will you take it?", choices: [
+        { label: "I will carry it.", to: 'accept' },
+        { label: "I've returned with Don Lope's reply.", to: 'done' },
+        { label: "What manner of letter?", to: 'what' },
+        { label: "Peace, brother.", to: null },
       ] },
-      sail: { text: 'I am sent to save souls. But I have read the reports from Las Verdías, and I fear we damn more than we save. Pray I am wrong.', choices: [{ label: 'What do the reports say?', to: 'reports' }, { label: 'A heavy charge.', to: null }] },
-      reports: { text: 'That the people of those islands die under our care faster than we can baptise them. Gold has a way of drowning the gospel. Mind your own conscience out there.', choices: [{ label: '…', to: null }] },
-      cath: { text: '“Let us build a church so great that those who see it finished will think us mad.” So the chapter said. They were not wrong on either count.', choices: [{ label: 'Madness or faith?', to: 'mad' }, { label: 'It is magnificent.', to: null }] },
-      mad: { text: 'Is there a difference, when the stone reaches that high? Go with God, sailor.', choices: [{ label: '…', to: null }] },
+      accept: { text: "God reward you. Tell him it is from the chapter -- he knows the matter. Come back to me when he gives you his reply.", choices: [{ label: "I will.", to: null }] },
+      done:   { text: "You have his reply? God and I both thank you. Here -- take these maravedis. An honest errand deserves honest pay.", choices: [{ label: "God keep you, brother.", to: null }] },
+      what:   { text: "Church matters, nothing sinister. Don Lope stands near the upper gate. Be courteous and he will send a reply.", choices: [{ label: "I will carry it.", to: 'accept' }, { label: "Find another messenger.", to: null }] },
     },
   },
   'Don Lope': {
     start: 'start',
     tree: {
-      start: { text: 'A second son with a good name and an empty purse — that is what stands before you. The Indies are where such men go to mend the second part.', choices: [
-        { label: 'You seek a ship?', to: 'ship' },
-        { label: 'And risk the first part?', to: 'name' },
-        { label: 'Fortune favour you.', to: null },
+      start: { text: "A second son with a good name and an empty purse -- that is what stands before you. The Indies are where such men go to mend the second part.", choices: [
+        { label: "A letter -- from Fray Bartolome.", to: 'letter' },
+        { label: "You seek a ship?", to: 'ship' },
+        { label: "Fortune favour you.", to: null },
       ] },
-      ship: { text: 'A berth, a sword, and a letter of introduction to the governor. Give me those and I will give Castara a new province. Do you sail soon?', choices: [{ label: 'Perhaps.', to: null }, { label: 'The sea is hard.', to: 'name' }] },
-      name: { text: 'A name unspent is no name at all. Better to wager it on a far shore than polish it in an empty hall in Valdara. I will take the ship.', choices: [{ label: '…', to: null }] },
+      letter: { text: "From the chapter? Yes, I know the matter. Here -- take this reply back to the friar. And tell him my answer is the same as it has always been.", choices: [{ label: "I will.", to: null }] },
+      ship:   { text: "A berth, a sword, and a letter of introduction to the governor. Give me those and I will give Castara a new province. Do you sail soon?", choices: [{ label: "Perhaps.", to: null }, { label: "The sea is hard.", to: 'name' }] },
+      name:   { text: "A name unspent is no name at all. Better to wager it on a far shore than polish it in an empty hall in Valdara. I will take the ship.", choices: [{ label: "...", to: null }] },
+    },
+  },
+  'Vieja Sancha': {
+    start: 'start',
+    tree: {
+      start: { text: "A sailor with time to spare! I have a wager for you -- catch three fish before the evening tide and I will give you eighty maravedis and two good biscuits besides.", choices: [
+        { label: "Three fish -- you're on.", to: 'accept' },
+        { label: "I caught your three fish.", to: 'won' },
+        { label: "What sort of fish?", to: 'what' },
+        { label: "Not today, grandmother.", to: null },
+      ] },
+      accept: { text: "Ha! Press C near the water to cast -- there are spots along this quay and up the coast. I will be here when you come back -- if you come back.", choices: [{ label: "I'll be back.", to: null }] },
+      won:    { text: "You caught three! The sea has spoken in your favour. Here -- eighty maravedis and two ship's biscuits for the crossing. May the Ocean Sea carry you kindly.", choices: [{ label: "Thank you, grandmother.", to: null }] },
+      what:   { text: "River mullet, bream, anything with fins. The water does not care what you pull out -- three fish, any kind.", choices: [{ label: "Deal.", to: 'accept' }, { label: "Maybe later.", to: null }] },
     },
   },
 };

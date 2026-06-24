@@ -137,8 +137,9 @@ exception when others then null; end $$;
 
 -- ---------------------------------------------------------------------------
 -- inventories: the player's hold (cargo / coin), keyed by a stable browser
--- identity. Guest world for now — the publishable (anon) key may read/write,
--- so saves work without a login. Tighten to auth.uid() when login lands.
+-- identity. Guests use a random browser key; signed-in players use 'acct:<uid>'.
+-- RLS enforces that authenticated users can only access their own account row;
+-- anon (guest) access is limited to non-account rows so accounts are protected.
 -- ---------------------------------------------------------------------------
 create table if not exists public.inventories (
   player_key  text primary key,
@@ -149,27 +150,46 @@ create table if not exists public.inventories (
 
 alter table public.inventories enable row level security;
 
+-- authenticated players: full access to their own account row only
 drop policy if exists "inventories readable" on public.inventories;
-create policy "inventories readable"
-  on public.inventories for select to anon, authenticated using (true);
-
 drop policy if exists "inventories insertable" on public.inventories;
-create policy "inventories insertable"
-  on public.inventories for insert to anon, authenticated with check (true);
-
 drop policy if exists "inventories updatable" on public.inventories;
-create policy "inventories updatable"
-  on public.inventories for update to anon, authenticated using (true) with check (true);
+drop policy if exists "authenticated own inventory" on public.inventories;
+create policy "authenticated own inventory"
+  on public.inventories for all to authenticated
+  using  (player_key = 'acct:' || auth.uid()::text)
+  with check (player_key = 'acct:' || auth.uid()::text);
+
+-- anon (guests): read/write only non-account rows (cannot touch acct: rows)
+drop policy if exists "anon guest inventory" on public.inventories;
+create policy "anon guest inventory"
+  on public.inventories for all to anon
+  using  (player_key not like 'acct:%')
+  with check (player_key not like 'acct:%');
 
 -- ---------------------------------------------------------------------------
--- player_state: progression that isn't cargo — quest progress, hull condition,
--- and which vessel the player owns. Keyed like inventories (a stable browser
--- identity, or acct:<uid> once signed in) so a signed-in player keeps progress
--- across devices. Anon-writable for the guest world, same as inventories.
+-- player_state: quest progress, hull condition, vessel, and ship position.
+-- Owned per-account with a proper FK to auth.users — only the owning player
+-- may read or write their own row. Guests stay localStorage-only (no cloud
+-- sync for anonymous sessions; cloud kicks in on sign-in).
 -- ---------------------------------------------------------------------------
+
+-- Migrate from old text-keyed table if it exists without the user_id column.
+do $$ begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'player_state'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'player_state'
+      and column_name = 'user_id'
+  ) then
+    drop table public.player_state;
+  end if;
+end; $$;
+
 create table if not exists public.player_state (
-  player_key  text primary key,
-  handle      text,
+  user_id     uuid primary key references auth.users(id) on delete cascade,
   state       jsonb not null default '{}'::jsonb,
   updated_at  timestamptz not null default now()
 );
@@ -177,16 +197,23 @@ create table if not exists public.player_state (
 alter table public.player_state enable row level security;
 
 drop policy if exists "player_state readable" on public.player_state;
-create policy "player_state readable"
-  on public.player_state for select to anon, authenticated using (true);
-
 drop policy if exists "player_state insertable" on public.player_state;
-create policy "player_state insertable"
-  on public.player_state for insert to anon, authenticated with check (true);
-
 drop policy if exists "player_state updatable" on public.player_state;
-create policy "player_state updatable"
-  on public.player_state for update to anon, authenticated using (true) with check (true);
+drop policy if exists "users read own state" on public.player_state;
+drop policy if exists "users insert own state" on public.player_state;
+drop policy if exists "users update own state" on public.player_state;
+
+create policy "users read own state"
+  on public.player_state for select to authenticated
+  using (auth.uid() = user_id);
+
+create policy "users insert own state"
+  on public.player_state for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "users update own state"
+  on public.player_state for update to authenticated
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- feedback: in-game bug reports & improvement ideas. Anyone (even a guest, not

@@ -17,6 +17,7 @@
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@supabase/supabase-js": "^2.108.1",
     "pg": "^8.21.0",
+    "playwright": "^1.61.1",
     "three": "^0.170.0"
   },
   "devDependencies": {
